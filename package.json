@@ -1,0 +1,10 @@
+{
+  "name": "korpusi",
+  "version": "1.0.0",
+  "description": "3D viewer and resident directory for Korpusi",
+  "type": "module",
+  "scripts": {
+    "build:public": "node scripts/build-public-data.mjs",
+    "serve": "npx serve ."
+  }
+}

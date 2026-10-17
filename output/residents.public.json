@@ -1,0 +1,528 @@
+{
+  "building": "კორპუსი",
+  "address": "ვარკეთილი-3, IV მიკრორაიონი, თბილისი",
+  "floors": 13,
+  "note": "N9 საჯარო რეესტრის ამონაწერში არ ფიგურირებს. მე-13 სართულზე შემოქმედებითი სახელოსნოებია.",
+  "units": [
+    {
+      "floor": 1,
+      "unit": "N1",
+      "side": "large",
+      "area": 56,
+      "owner": "დ. ს.",
+      "rooms": 2
+    },
+    {
+      "floor": 1,
+      "unit": "N2",
+      "side": "large",
+      "area": 106,
+      "owner": "ლ. ა.",
+      "rooms": 3
+    },
+    {
+      "floor": 1,
+      "unit": "N3",
+      "side": "small",
+      "area": 60.25,
+      "owner": "ი. დ.",
+      "rooms": 2
+    },
+    {
+      "floor": 1,
+      "unit": "N4",
+      "side": "small",
+      "area": 89.63,
+      "owner": "ი. ბ.",
+      "rooms": 3
+    },
+    {
+      "floor": 2,
+      "unit": "N5",
+      "side": "large",
+      "area": 67.28,
+      "owner": "ი. ბ.",
+      "rooms": 2
+    },
+    {
+      "floor": 2,
+      "unit": "N6",
+      "side": "large",
+      "area": 93.4,
+      "owner": "გ. მ.",
+      "rooms": 3
+    },
+    {
+      "floor": 2,
+      "unit": "N7",
+      "side": "small",
+      "area": 27,
+      "owner": "გ. ჯ.",
+      "rooms": 2
+    },
+    {
+      "floor": 2,
+      "unit": "N8",
+      "side": "small",
+      "area": 47,
+      "owner": "ა. ს.",
+      "rooms": 3
+    },
+    {
+      "floor": 3,
+      "unit": "N9",
+      "side": "large",
+      "area": null,
+      "owner": null,
+      "missing": true,
+      "rooms": 2
+    },
+    {
+      "floor": 3,
+      "unit": "N10",
+      "side": "large",
+      "area": 93.4,
+      "owner": "ფ. გ.",
+      "rooms": 3
+    },
+    {
+      "floor": 3,
+      "unit": "N11",
+      "side": "small",
+      "area": 69.3,
+      "owner": "შ. ც.",
+      "rooms": 2
+    },
+    {
+      "floor": 3,
+      "unit": "N12",
+      "side": "small",
+      "area": 82.05,
+      "owner": "ე. მ.",
+      "rooms": 3
+    },
+    {
+      "floor": 4,
+      "unit": "N13",
+      "side": "large",
+      "area": 64,
+      "owner": "ნ. ს., გ. გ.",
+      "rooms": 2
+    },
+    {
+      "floor": 4,
+      "unit": "N14",
+      "side": "large",
+      "area": 78,
+      "owner": "გ. ჩ.",
+      "rooms": 3
+    },
+    {
+      "floor": 4,
+      "unit": "N15",
+      "side": "small",
+      "area": 64,
+      "owner": "მ. ჩ.",
+      "rooms": 2
+    },
+    {
+      "floor": 4,
+      "unit": "N16",
+      "side": "small",
+      "area": 47,
+      "owner": "ა. ბ.",
+      "rooms": 3
+    },
+    {
+      "floor": 5,
+      "unit": "N17",
+      "side": "large",
+      "area": 66.75,
+      "owner": "გ. ფ.",
+      "rooms": 2
+    },
+    {
+      "floor": 5,
+      "unit": "N18",
+      "side": "large",
+      "area": 93.6,
+      "owner": "ვ. შ.",
+      "rooms": 3
+    },
+    {
+      "floor": 5,
+      "unit": "N19",
+      "side": "small",
+      "area": 60.25,
+      "owner": "ე. ხ.",
+      "rooms": 2
+    },
+    {
+      "floor": 5,
+      "unit": "N20",
+      "side": "small",
+      "area": 93.4,
+      "owner": "ვ. ს.",
+      "rooms": 3
+    },
+    {
+      "floor": 6,
+      "unit": "N21",
+      "side": "large",
+      "area": 68.75,
+      "owner": "მ. ხ.",
+      "rooms": 2
+    },
+    {
+      "floor": 6,
+      "unit": "N22",
+      "side": "large",
+      "area": 93.6,
+      "owner": "ე. პ.",
+      "rooms": 3
+    },
+    {
+      "floor": 6,
+      "unit": "N23",
+      "side": "small",
+      "area": 60.25,
+      "owner": "ს. ა.",
+      "rooms": 2
+    },
+    {
+      "floor": 6,
+      "unit": "N24",
+      "side": "small",
+      "area": 93.6,
+      "owner": "ნ. ტ., მ. კ.",
+      "rooms": 3
+    },
+    {
+      "floor": 7,
+      "unit": "N25",
+      "side": "small",
+      "area": 68.14,
+      "owner": "რ. ჩ.",
+      "rooms": 2
+    },
+    {
+      "floor": 7,
+      "unit": "N26",
+      "side": "small",
+      "area": 93.4,
+      "owner": "ა. ს.",
+      "rooms": 3
+    },
+    {
+      "floor": 7,
+      "unit": "N27",
+      "side": "large",
+      "area": 60.25,
+      "owner": "ა. ს.",
+      "rooms": 2
+    },
+    {
+      "floor": 7,
+      "unit": "N28",
+      "side": "large",
+      "area": 102.02,
+      "owner": "ნ. ბ.",
+      "rooms": 3
+    },
+    {
+      "floor": 8,
+      "unit": "N29",
+      "side": "small",
+      "area": 68.9,
+      "owner": "გ. ბ.",
+      "rooms": 2
+    },
+    {
+      "floor": 8,
+      "unit": "N30",
+      "side": "small",
+      "area": 88.45,
+      "owner": "ე. გ.",
+      "rooms": 3
+    },
+    {
+      "floor": 8,
+      "unit": "N31",
+      "side": "large",
+      "area": 68.62,
+      "owner": "დ. მ.",
+      "rooms": 2
+    },
+    {
+      "floor": 8,
+      "unit": "N32",
+      "side": "large",
+      "area": 47,
+      "owner": "ნ. ჩ.",
+      "rooms": 3
+    },
+    {
+      "floor": 9,
+      "unit": "N33",
+      "side": "small",
+      "area": null,
+      "owner": "ნ. ა.",
+      "rooms": 2
+    },
+    {
+      "floor": 9,
+      "unit": "N34",
+      "side": "small",
+      "area": 94,
+      "owner": "ს. კ.",
+      "rooms": 3
+    },
+    {
+      "floor": 9,
+      "unit": "N35",
+      "side": "large",
+      "area": 60.25,
+      "owner": "ქ. ლ.",
+      "rooms": 2
+    },
+    {
+      "floor": 9,
+      "unit": "N36",
+      "side": "large",
+      "area": 47,
+      "owner": "ა. ბ.",
+      "rooms": 3
+    },
+    {
+      "floor": 10,
+      "unit": "N37",
+      "side": "small",
+      "area": 60.25,
+      "owner": "ვ. ხ.",
+      "rooms": 2
+    },
+    {
+      "floor": 10,
+      "unit": "N38",
+      "side": "small",
+      "area": 90.08,
+      "owner": "დ. შ.",
+      "rooms": 3
+    },
+    {
+      "floor": 10,
+      "unit": "N39",
+      "side": "large",
+      "area": 60.25,
+      "owner": "გ. ბ.",
+      "rooms": 2
+    },
+    {
+      "floor": 10,
+      "unit": "N40",
+      "side": "large",
+      "area": 93.4,
+      "owner": "გ. მ.",
+      "rooms": 3
+    },
+    {
+      "floor": 11,
+      "unit": "N41",
+      "side": "small",
+      "area": 27,
+      "owner": "გ. ყ.",
+      "rooms": 2
+    },
+    {
+      "floor": 11,
+      "unit": "N42",
+      "side": "small",
+      "area": 93.6,
+      "owner": "გ. მ.",
+      "rooms": 3
+    },
+    {
+      "floor": 11,
+      "unit": "N43",
+      "side": "large",
+      "area": 67.82,
+      "owner": "თ. ბ.",
+      "rooms": 2
+    },
+    {
+      "floor": 11,
+      "unit": "N44",
+      "side": "large",
+      "area": 88.68,
+      "owner": "ც. გ.",
+      "rooms": 3
+    },
+    {
+      "floor": 12,
+      "unit": "N45",
+      "side": "small",
+      "area": 64,
+      "owner": "გ. ტ.",
+      "rooms": 2
+    },
+    {
+      "floor": 12,
+      "unit": "N46",
+      "side": "small",
+      "area": 90.31,
+      "owner": "ნ. გ.",
+      "rooms": 3
+    },
+    {
+      "floor": 12,
+      "unit": "N47",
+      "side": "large",
+      "area": 27,
+      "owner": "რ. ჩ.",
+      "rooms": 2
+    },
+    {
+      "floor": 12,
+      "unit": "N48",
+      "side": "large",
+      "area": 80,
+      "owner": "რ. წ.",
+      "workshop": true,
+      "rooms": 3
+    },
+    {
+      "floor": 13,
+      "unit": "N48ა",
+      "side": "large",
+      "area": 60,
+      "owner": "ნ. მ.",
+      "rooms": 2
+    },
+    {
+      "floor": 13,
+      "unit": "N49",
+      "side": "small",
+      "area": 70.16,
+      "owner": "გ. მ.",
+      "workshop": true,
+      "rooms": 2
+    },
+    {
+      "floor": 13,
+      "unit": "N50",
+      "side": "small",
+      "area": 86,
+      "owner": "დ. ყ.",
+      "workshop": true,
+      "rooms": 3
+    }
+  ],
+  "non_residential": [
+    {
+      "type": "basement",
+      "label": "სარდაფი",
+      "area": 8,
+      "owner": "ი. დ.",
+      "alsoUnit": "N3"
+    },
+    {
+      "type": "basement",
+      "label": "სარდაფი",
+      "area": 5.13,
+      "owner": "ნ. გ."
+    },
+    {
+      "type": "storage",
+      "label": "სათავსო",
+      "area": 18.53,
+      "owner": "ე. გ.",
+      "alsoUnit": "N30"
+    },
+    {
+      "type": "storage",
+      "label": "N1ბ",
+      "area": 9.66,
+      "owner": "გ. გ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N4",
+      "area": 25.47,
+      "owner": "ა. ნ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N9",
+      "area": 25.13,
+      "owner": "შ. ს."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N12",
+      "area": 18.79,
+      "owner": "ჯ. თ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N13",
+      "area": 17.29,
+      "owner": "ნ. ბ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N15",
+      "area": 18.6,
+      "owner": "ს. ს.",
+      "alsoUnit": "N32"
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N5",
+      "area": 19.95,
+      "owner": "გ. ნ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N6",
+      "area": 21.6,
+      "owner": "ნ. ტ., მ. კ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N7",
+      "area": 20.4,
+      "owner": "ა. ბ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N8",
+      "area": 18.27,
+      "owner": "ზ. გ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N14",
+      "area": 17.7,
+      "owner": "გ. მ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N16",
+      "area": 17.98,
+      "owner": "ა. მ."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N17",
+      "area": 18,
+      "owner": "ა. ს."
+    },
+    {
+      "type": "garage",
+      "label": "ავტოფარეხი N18",
+      "area": 19.84,
+      "owner": "ა. მ."
+    }
+  ],
+  "plot_area": 2773
+}

@@ -1,0 +1,16 @@
+# Contains personal identification numbers; keep this source file local only.
+/output/residents.json
+
+# Blender working files and source model backups
+/output/*.blend
+/output/*.blend1
+/output/building_source.glb
+/output/building_view_*.png
+
+# Reference material (not needed for the published site)
+/reference/
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+node_modules/

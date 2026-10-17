@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>კორპუსი</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #11151c; }
+  body { font-family: system-ui, "Segoe UI", sans-serif; color: #e8edf4; }
+  #app { position: fixed; inset: 0; display: flex; }
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+  #canvas-wrap canvas { position: absolute; inset: 0; display: block; }
+
+  #loading-overlay {
+    position: absolute; inset: 0; background: #11151c; z-index: 1000;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    font-size: 18px; font-weight: bold; color: #9fb3cc; transition: opacity 0.4s ease;
+  }
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  #floors {
+    position: absolute; top: 12px; left: 12px; z-index: 6;
+    display: flex; flex-direction: column-reverse; gap: 3px;
+    padding: 8px; border-radius: 10px;
+    background: rgba(17,21,28,.78); border: 1px solid #2b3442;
+    backdrop-filter: blur(6px);
+  }
+  #floors button {
+    width: 54px; padding: 5px 0; cursor: pointer;
+    font: 600 12px/1 system-ui; color: #cfd8e3;
+    background: #1b2330; border: 1px solid #2f3b4d; border-radius: 5px;
+  }
+  #floors button:hover { background: #26313f; color: #fff; }
+  #floors button.on { background: #3d6ea8; border-color: #6ba3e0; color: #fff; }
+  #floors button.aux-btn { width: 54px; font-size: 10px; line-height: 1.15; padding: 6px 2px; color: #a9dca9; border-color: #38513a; }
+  #floors button.aux-btn.on { background: #2c3a2c; border-color: #6fbf6f; color: #d6f5d6; }
+
+  #panel {
+    width: 320px; flex: none; overflow-y: auto;
+    padding: 18px; background: #171d26; border-left: 1px solid #2b3442;
+  }
+  #panel h1 { margin: 0 0 2px; font-size: 17px; }
+  #panel .sub { margin: 0 0 16px; font-size: 12px; color: #7f8b9c; }
+  #panel .side-note { margin: -9px 0 16px; font-size: 11px; color: #a9b5c5; line-height: 1.45; }
+  #panel h2 { margin: 0 0 10px; font-size: 14px; color: #9fb3cc; font-weight: 600; }
+  #room-filters { display: flex; gap: 8px; margin: 0 0 12px; }
+  #room-filters button {
+    flex: 1; padding: 7px 8px; cursor: pointer;
+    font: 600 12px/1.2 system-ui; color: #cfd8e3;
+    background: #1b2330; border: 1px solid #2f3b4d; border-radius: 6px;
+  }
+  #room-filters button:hover { background: #26313f; color: #fff; }
+  #room-filters button.on { background: #3d6ea8; border-color: #6ba3e0; color: #fff; }
+
+  .unit {
+    margin-bottom: 8px; padding: 10px 12px; border-radius: 8px;
+    background: #1e2632; border: 1px solid #2b3442;
+  }
+  .unit .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .unit .no { font-weight: 700; font-size: 14px; }
+  .unit .meta { font-size: 11px; color: #8b98aa; }
+  .unit .owner { margin-top: 6px; font-size: 13px; color: #cfe0f5; }
+  .unit .owner.empty { color: #6d7a8c; font-style: italic; }
+  .unit .side { display: inline-block; margin-top: 6px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .3px; }
+  .unit .side.large { background: #24384f; color: #9cc4f5; }
+  .unit .side.small { background: #3d3320; color: #f0c674; }
+  .unit .pn { margin-top: 6px; font-size: 11px; color: #9fb3cc; font-family: ui-monospace, Consolas, monospace; letter-spacing: .3px; }
+  .unit .doc { margin-top: 6px; font-size: 11px; color: #8b98aa; line-height: 1.45; }
+  .unit .doc b { color: #b6c6da; font-weight: 600; }
+  .unit .mortgage { margin-top: 6px; font-size: 11px; color: #d8b48a; line-height: 1.45; }
+  .unit .mortgage b { color: #f0c674; font-weight: 600; }
+  .unit .flag { display: inline-block; margin-top: 6px; margin-right: 4px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .unit .flag.warn { background: #4a2a2a; color: #f5a3a3; }
+  .unit .flag.work { background: #2f3a4a; color: #a9c8ec; }
+  .unit .flag.store { background: #2c3a2c; color: #a9dca9; }
+  .side-head { margin: 14px 0 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #7f8b9c; }
+  .side-head.large { color: #9cc4f5; }
+  .side-head.small { color: #f0c674; }
+  .unit.aux { background: #1b2129; border-style: dashed; }
+
+  #hint { position: absolute; bottom: 12px; left: 12px; font-size: 12px; color: #7f8b9c; }
+  #err { position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 24px; }
+  #data-error { display: none; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #704040; border-radius: 8px; background: #3a2428; color: #ffc1c1; font-size: 12px; line-height: 1.45; }
+
+  @media (max-width: 700px) {
+    #app { flex-direction: column; }
+    #canvas-wrap { flex: 0 0 52%; min-height: 220px; }
+    #panel { width: 100%; min-height: 0; flex: 1; padding: 14px; border-left: 0; border-top: 1px solid #2b3442; }
+    #floors { top: auto; right: 8px; bottom: 8px; left: 8px; flex-direction: row; gap: 4px; overflow-x: auto; }
+    #floors button { width: 40px; min-width: 40px; min-height: 36px; }
+    #floors button.aux-btn { width: 58px; min-width: 58px; }
+    #hint { right: 8px; bottom: 58px; left: 8px; text-align: center; font-size: 11px; }
+  }
+
+  @media (max-width: 380px) {
+    #canvas-wrap { flex-basis: 46%; min-height: 190px; }
+    #panel { padding: 12px; }
+    #panel .sub { margin-bottom: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap">
+    <div id="loading-overlay">იტვირთება...</div>
+    <div id="floors"></div>
+    <div id="hint">დააჭირე ბინის ზონას ან აირჩიე 2/3-ოთახიანი — შესაბამისი ნაწილი განათდება</div>
+    <div id="err"></div>
+  </div>
+  <aside id="panel">
+    <h1>კორპუსი</h1>
+    <p class="sub">ვარკეთილი-3 IV მიკრო რაიონი · 13 სართული · 4 ბინა/სართული</p>
+    <div id="data-error" role="alert" aria-live="assertive"></div>
+    <h2 id="panel-title">აირჩიე სართული</h2>
+    <div id="room-filters" aria-label="ბინის ოთახების რაოდენობა">
+      <button type="button" data-rooms="2">2-ოთახიანი</button>
+      <button type="button" data-rooms="3">3-ოთახიანი</button>
+    </div>
+    <div id="units"></div>
+  </aside>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const wrap = document.getElementById("canvas-wrap");
+const floorBar = document.getElementById("floors");
+const unitsBox = document.getElementById("units");
+const roomFilters = document.getElementById("room-filters");
+const panelTitle = document.getElementById("panel-title");
+const errBox = document.getElementById("err");
+const dataError = document.getElementById("data-error");
+const loadingOverlay = document.getElementById("loading-overlay");
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Use 1.5 on mobile for performance, 2 on desktop for sharpness
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
+renderer.shadowMap.enabled = false;
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fc4e5);
+scene.fog = new THREE.Fog(0x9fc4e5, 180, 480);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 12;
+controls.maxDistance = 400;
+
+scene.add(new THREE.HemisphereLight(0xe5efff, 0x68634f, 1.9));
+const sun = new THREE.DirectionalLight(0xffffff, 2.3);
+sun.position.set(60, 90, 40);
+sun.castShadow = false;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -80;
+sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80;
+sun.shadow.camera.bottom = -80;
+sun.shadow.camera.far = 300;
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(600, 600),
+  new THREE.MeshStandardMaterial({ color: 0x626f55, roughness: 1 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.05;
+ground.receiveShadow = false;
+scene.add(ground);
+
+function addFacadeDetails(root) {
+  const outline = [
+    [12.99, -13.09], [4.46, -13.07], [4.47, -10.68], [0.63, -10.66],
+    [0.64, -7.78], [-3.19, -7.77], [-3.18, -0.43], [-8.65, -0.42],
+    [-8.66, -3.34], [-13.41, -3.33], [-13.41, -0.71], [-17.22, -0.70],
+    [-17.19, 11.96], [-13.95, 11.96], [-13.94, 14.20], [-3.17, 14.18],
+    [-3.18, 11.97], [-0.45, 11.97], [-0.46, 6.72], [3.56, 6.72],
+    [3.54, -0.48], [10.84, -0.50], [10.84, 1.48], [12.37, 1.48],
+    [12.37, -0.38], [15.17, -0.39], [15.15, -9.45], [13.00, -9.44]
+  ];
+  const frameMaterial = new THREE.MeshStandardMaterial({ color: 0xe7e0cc, roughness: 0.82 });
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x455c6e,
+    roughness: 0.3,
+    metalness: 0.12,
+    emissive: 0x111c25
+  });
+  const detailMaterial = new THREE.MeshStandardMaterial({ color: 0xd0c8b3, roughness: 0.9 });
+  const airConditionerMaterial = new THREE.MeshStandardMaterial({ color: 0xc9c6b9, roughness: 0.9 });
+  const railMaterial = new THREE.MeshStandardMaterial({ color: 0x343b3d, roughness: 0.78, metalness: 0.2 });
+  const temp = new THREE.Object3D();
+  const windows = { frame: [], glass: [], mullion: [], sill: [] };
+  const balconies = { deck: [], top: [], bottom: [], post: [], side: [] };
+  const airConditioners = [];
+
+  for (let i = 0; i < outline.length; i++) {
+    const start = outline[i];
+    const end = outline[(i + 1) % outline.length];
+    const dx = end[0] - start[0];
+    const dz = end[1] - start[1];
+    const length = Math.hypot(dx, dz);
+    if (length < 2.25) continue;
+    const nx = -dz / length;
+    const nz = dx / length;
+    const alongX = Math.abs(dx) >= Math.abs(dz);
+    const rotation = alongX ? 0 : Math.PI / 2;
+    const isBalconyBay = Math.abs(start[1] - 11.96) < 0.03 &&
+      Math.abs(end[1] - 11.96) < 0.03 &&
+      Math.min(start[0], end[0]) < -15.5 &&
+      Math.max(start[0], end[0]) > -15.6;
+
+    if (isBalconyBay) {
+      for (let floor = 0; floor < 13; floor++) {
+        const y = floor * 3;
+        const balcony = { x: -15.57, z: 12.52, y };
+        const add = (list, x, z, objectY, dimensions) => {
+          const item = { x, y: objectY, z, dimensions };
+          balconies[list].push(item);
+        };
+        add("deck", balcony.x, balcony.z, y + 0.18, [3.05, 0.14, 1.12]);
+        add("top", balcony.x, balcony.z + 0.54, y + 1.12, [2.88, 0.065, 0.065]);
+        add("bottom", balcony.x, balcony.z + 0.54, y + 0.27, [2.88, 0.055, 0.055]);
+        add("side", balcony.x - 1.44, balcony.z, y + 1.12, [0.065, 0.065, 1.1]);
+        add("side", balcony.x + 1.44, balcony.z, y + 1.12, [0.065, 0.065, 1.1]);
+        add("post", balcony.x - 1.42, balcony.z + 0.54, y + 0.69, [0.055, 0.88, 0.055]);
+        add("post", balcony.x + 1.42, balcony.z + 0.54, y + 0.69, [0.055, 0.88, 0.055]);
+        for (let post = -4; post <= 4; post++) {
+          if (post === 0) continue;
+          add("post", balcony.x + post * 0.31, balcony.z + 0.54, y + 0.69, [0.035, 0.88, 0.035]);
+        }
+      }
+      continue;
+    }
+
+    const count = Math.max(1, Math.floor(length / 2.45));
+    const width = Math.min(1.25, (length / (count + 1)) * 0.72);
+    for (let floor = 0; floor < 13; floor++) {
+      for (let index = 0; index < count; index++) {
+        const t = (index + 1) / (count + 1);
+        const x = start[0] + dx * t + nx * 0.09;
+        const z = start[1] + dz * t + nz * 0.09;
+        const y = floor * 3 + 1.62;
+        windows.frame.push({ x: x + nx * 0.15, y, z: z + nz * 0.15, rotation, width });
+        windows.glass.push({ x: x + nx * 0.235, y, z: z + nz * 0.235, rotation, width });
+        windows.mullion.push({
+          x: x + nx * 0.285, y, z: z + nz * 0.285, rotation, dimensions: [1, 1, 1]
+        });
+        windows.sill.push({ x: x + nx * 0.15, y: y - 0.81, z: z + nz * 0.15, rotation, width });
+        if (floor % 4 === 1 && index % 2 === 0) {
+          airConditioners.push({
+            x: x + nx * 0.19,
+            y: y - 1.02,
+            z: z + nz * 0.19,
+            rotation,
+            dimensions: [1, 1, 1]
+          });
+        }
+      }
+    }
+  }
+
+  const addInstances = (items, dimensions, material) => {
+    if (!items.length) return;
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(...dimensions), material, items.length);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      temp.position.set(item.x, item.y, item.z);
+      temp.rotation.set(0, item.rotation || 0, 0);
+      temp.scale.set(...(item.dimensions || [item.width / dimensions[0], 1, 1]));
+      temp.updateMatrix();
+      mesh.setMatrixAt(i, temp.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+  };
+
+  addInstances(windows.frame, [1.43, 1.72, 0.14], frameMaterial);
+  addInstances(windows.glass, [1.22, 1.48, 0.08], glassMaterial);
+  addInstances(windows.mullion, [0.045, 1.48, 0.07], detailMaterial);
+  addInstances(windows.sill, [1.48, 0.09, 0.22], frameMaterial);
+  addInstances(balconies.deck, [1, 1, 1], detailMaterial);
+  addInstances(balconies.top, [1, 1, 1], railMaterial);
+  addInstances(balconies.bottom, [1, 1, 1], railMaterial);
+  addInstances(balconies.post, [1, 1, 1], railMaterial);
+  addInstances(balconies.side, [1, 1, 1], railMaterial);
+  addInstances(airConditioners, [0.52, 0.34, 0.3], airConditionerMaterial);
+
+  const portholeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3e596c,
+    roughness: 0.34,
+    metalness: 0.1,
+    emissive: 0x111c25
+  });
+  const portholeFrame = new THREE.MeshStandardMaterial({ color: 0xe7e0cc, roughness: 0.85 });
+  for (let i = 0; i < 3; i++) {
+    const x = -12.1 + i * 3.45;
+    const y = 37.65;
+    const z = 14.28;
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.36, 24), portholeMaterial);
+    glass.position.set(x, y, z);
+    root.add(glass);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 24), portholeFrame);
+    ring.position.set(x, y, z + 0.025);
+    root.add(ring);
+  }
+}
+
+// --- data ---------------------------------------------------------------
+const unitsByFloor = new Map(); // floor -> [unit, ...]
+let nonResidential = [];
+const SIDE_LABEL = { large: "დიდი ლიფტის მხარე", small: "პატარა ლიფტის მხარე" };
+
+async function loadResidents() {
+  try {
+    const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+    let res = isLocal
+      ? await fetch("../output/residents.json")
+      : await fetch("../output/residents.public.json");
+    if (!res.ok && isLocal) res = await fetch("../output/residents.public.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data.units) || !Array.isArray(data.non_residential)) {
+      throw new Error("მონაცემების სტრუქტურა არასწორია");
+    }
+    for (const u of data.units) {
+      if (!unitsByFloor.has(u.floor)) unitsByFloor.set(u.floor, []);
+      unitsByFloor.get(u.floor).push(u);
+    }
+    nonResidential = data.non_residential;
+  } catch (e) {
+    dataError.textContent = "ბინების მონაცემები ვერ ჩაიტვირთა. შეამოწმეთ, რომ პროექტი ლოკალური ვებ-სერვერიდანაა გახსნილი და residents.json ან residents.public.json ხელმისაწვდომია.";
+    dataError.style.display = "block";
+    console.error("ბინების მონაცემების ჩატვირთვა ვერ მოხერხდა:", e);
+  }
+}
+
+function unitCard(u) {
+  const div = document.createElement("div");
+  div.className = "unit";
+  const sideCls = u.side === "small" ? "small" : "large";
+  let html =
+    `<div class="top"><span class="no">ბინა ${u.unit}</span>` +
+    `<span class="meta">${u.area != null ? u.area + " მ²" : ""}</span></div>` +
+    `<span class="side ${sideCls}">${SIDE_LABEL[sideCls]}</span>`;
+
+    const owner = u.owner || "";
+  if (owner) html += `<div class="owner" title="კონფიდენციალურობის დაცვის მიზნით, სახელები დაფარულია">${owner}</div>`;
+
+  if (u.pn) html += `<div class="pn">პ/ნ: ${u.pn}</div>`;
+
+  if (u.doc || u.docNo || u.date) {
+    const parts = [];
+    if (u.doc) parts.push(`<b>${u.doc}</b>`);
+    if (u.docNo) parts.push(`№ ${u.docNo}`);
+    if (u.date) parts.push(u.date);
+    html += `<div class="doc">${parts.join(" · ")}</div>`;
+  }
+  if (u.mortgage) html += `<div class="mortgage">იპოთეკა: <b>${u.mortgage.bank}</b>${u.mortgage.date ? " · " + u.mortgage.date : ""}${u.mortgage.contract ? " · № " + u.mortgage.contract : ""}</div>`;
+  if (u.cadastral) html += `<div class="doc">საკადასტრო: ${u.cadastral}</div>`;
+  if (u.missing) html += `<span class="flag warn">რეესტრში არ ფიგურირებს</span>`;
+  if (u.workshop) html += `<span class="flag work">სახელოსნო</span>`;
+  if (u.storage) html += `<span class="flag store">სათავსო</span>`;
+
+  div.innerHTML = html;
+  return div;
+}
+function auxCard(a) {
+  const div = document.createElement("div");
+  div.className = "unit aux";
+  let html =
+    `<div class="top"><span class="no">${a.label}</span>` +
+    `<span class="meta">${a.area != null ? a.area + " მ²" : ""}</span></div>` +
+    `<span class="flag ${a.type === "garage" ? "store" : "work"}">${a.type === "basement" ? "სარდაფი" : a.type === "storage" ? "სათავსო" : "ავტოფარეხი"}</span>`;
+  if (a.owner) html += `<div class="owner">${a.owner}</div>`;
+  if (a.pn) html += `<div class="pn">პ/ნ: ${a.pn}</div>`;
+  if (a.doc || a.docNo || a.date) {
+    const parts = [];
+    if (a.doc) parts.push(`<b>${a.doc}</b>`);
+    if (a.docNo) parts.push(`№ ${a.docNo}`);
+    if (a.date) parts.push(a.date);
+    html += `<div class="doc">${parts.join(" · ")}</div>`;
+  }
+  if (a.cadastral) html += `<div class="doc">საკადასტრო: ${a.cadastral}</div>`;
+  if (a.alsoUnit) html += `<div class="doc">ასევე ფლობს ბინა ${a.alsoUnit}</div>`;
+  div.innerHTML = html;
+  return div;
+}
+// --- floors -------------------------------------------------------------
+const floorMeshes = new Map(); // number -> [meshes]
+const BASE = new THREE.Color(0xcfd3d8);
+const HOT = new THREE.Color(0x4d8fd6);
+const ROOM_ZONES = [
+  { roomCount: 2, side: "large", minX: -5.5, maxX: 6.5, minZ: -16.5, maxZ: -4.5 },
+  { roomCount: 2, side: "small", minX: -5.5, maxX: 6.5, minZ: 3.5, maxZ: 15.5 },
+  { roomCount: 3, side: "large", minX: 7.0, maxX: 18.5, minZ: -16.5, maxZ: 3.5 },
+  { roomCount: 3, side: "small", minX: -18.5, maxX: -7.0, minZ: -5.0, maxZ: 15.5 },
+];
+function classifyPoint(point) {
+  for (const zone of ROOM_ZONES) {
+    if (
+      point.x >= zone.minX && point.x <= zone.maxX &&
+      point.z >= zone.minZ && point.z <= zone.maxZ
+    ) {
+      return { roomCount: zone.roomCount, side: zone.side };
+    }
+  }
+  return null;
+}
+let sideHighlight = null;
+const sideHighlightMaterial = new THREE.MeshBasicMaterial({
+  color: 0x63b4ff,
+  transparent: true,
+  opacity: 0.38,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  side: THREE.DoubleSide,
+});
+let selected = null;
+let selectedSide = null;
+let selectedRoomCount = null;
+let auxMode = false;
+
+function paint(mesh, on) {
+  if (!mesh.userData.selectionMaterial) {
+    mesh.userData.selectionMaterial = mesh.material.clone();
+    mesh.material = mesh.userData.selectionMaterial;
+  }
+  mesh.material.color.copy(on ? HOT : BASE);
+}
+
+function clearSideHighlight() {
+  if (!sideHighlight) return;
+  scene.remove(sideHighlight);
+  sideHighlight.geometry.dispose();
+  sideHighlight = null;
+}
+
+function roomCountForUnit(unit) {
+  return unit.rooms || null;
+}
+function showFloorHighlight(floor, side, roomCount) {
+  clearSideHighlight();
+  const positions = [];
+  const worldVertex = new THREE.Vector3();
+  const clipHalfPlane = (polygon, coordinate, boundary, keepLess) => {
+    const clipped = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const start = polygon[i];
+      const end = polygon[(i + 1) % polygon.length];
+      const startValue = coordinate(start);
+      const endValue = coordinate(end);
+      const startInside = keepLess ? startValue <= boundary : startValue >= boundary;
+      const endInside = keepLess ? endValue <= boundary : endValue >= boundary;
+      if (startInside) clipped.push(start);
+      if (startInside !== endInside) {
+        const t = (boundary - startValue) / (endValue - startValue);
+        clipped.push(start.clone().lerp(end, t));
+      }
+    }
+    return clipped;
+  };
+  const clipToRect = (polygon, minX, maxX, minZ, maxZ) => {
+    let result = clipHalfPlane(polygon, (p) => p.x, minX, false);
+    result = clipHalfPlane(result, (p) => p.x, maxX, true);
+    result = clipHalfPlane(result, (p) => p.z, minZ, false);
+    result = clipHalfPlane(result, (p) => p.z, maxZ, true);
+    return result.length >= 3 ? [result] : [];
+  };
+  const clipToSelection = (triangle) => {
+    let regions = [];
+    for (const zone of ROOM_ZONES) {
+      if (roomCount && zone.roomCount !== roomCount) continue;
+      if (side && zone.side !== side) continue;
+      regions.push(...clipToRect(triangle, zone.minX, zone.maxX, zone.minZ, zone.maxZ));
+    }
+    return regions;
+  };
+  for (const mesh of floorMeshes.get(floor) || []) {
+    mesh.updateWorldMatrix(true, false);
+    const position = mesh.geometry.getAttribute("position");
+    const index = mesh.geometry.index;
+    const vertexCount = index ? index.count : position.count;
+    for (let i = 0; i + 2 < vertexCount; i += 3) {
+      const triangle = [];
+      for (let j = 0; j < 3; j++) {
+        const vertexIndex = index ? index.getX(i + j) : i + j;
+        worldVertex.fromBufferAttribute(position, vertexIndex).applyMatrix4(mesh.matrixWorld);
+        triangle.push(worldVertex.clone());
+      }
+      for (const region of clipToSelection(triangle)) {
+        for (let j = 1; j + 1 < region.length; j++) {
+          for (const vertex of [region[0], region[j], region[j + 1]]) {
+            positions.push(vertex.x, vertex.y, vertex.z);
+          }
+        }
+      }
+    }
+  }
+  if (!positions.length) return;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  sideHighlight = new THREE.Mesh(geometry, sideHighlightMaterial);
+  sideHighlight.renderOrder = 1;
+  scene.add(sideHighlight);
+}
+
+function selectFloor(n) {
+  auxMode = false;
+  if (selected === n && !selectedSide) selected = null;
+  else selected = n;
+  selectedSide = null;
+  selectedRoomCount = null;
+  refreshSelection();
+}
+
+function selectRoomCount(roomCount) {
+  auxMode = false;
+  selectedRoomCount = selectedRoomCount === roomCount ? null : roomCount;
+  selectedSide = null;
+  refreshSelection();
+}
+
+function selectBuildingSide(n, side, roomCount) {
+  auxMode = false;
+  selected = n;
+  selectedSide = side;
+  selectedRoomCount = roomCount;
+  refreshSelection();
+}
+
+function toggleAux() {
+  auxMode = !auxMode;
+  if (auxMode) {
+    selected = null;
+    selectedSide = null;
+    selectedRoomCount = null;
+  }
+  refreshSelection();
+}
+
+function refreshSelection() {
+  for (const [n, meshes] of floorMeshes) {
+    for (const mesh of meshes) {
+      paint(mesh, n === selected && !selectedSide && !selectedRoomCount);
+    }
+  }
+  if (selected !== null && (selectedSide || selectedRoomCount)) {
+    showFloorHighlight(selected, selectedSide, selectedRoomCount);
+  }
+  else clearSideHighlight();
+  for (const button of roomFilters.children) {
+    button.classList.toggle("on", Number(button.dataset.rooms) === selectedRoomCount);
+  }
+  for (const b of floorBar.children) {
+    if (b.classList.contains("aux-btn")) b.classList.toggle("on", auxMode);
+    else b.classList.toggle("on", Number(b.dataset.floor) === selected);
+  }
+  renderPanel();
+}
+
+function renderPanel() {
+  unitsBox.innerHTML = "";
+  if (auxMode) {
+    panelTitle.textContent = "არასაცხოვრებელი ფართები";
+    if (!nonResidential.length) {
+      unitsBox.innerHTML = `<div class="unit"><div class="owner empty">მონაცემები არ არის</div></div>`;
+      return;
+    }
+    for (const a of nonResidential) unitsBox.appendChild(auxCard(a));
+    return;
+  }
+  if (selected === null) {
+    panelTitle.textContent = selectedRoomCount
+      ? `აირჩიე სართული · ${selectedRoomCount}-ოთახიანი`
+      : "აირჩიე სართული ან ბინის ზონა";
+    return;
+  }
+  const selectionLabels = [];
+  if (selectedRoomCount) selectionLabels.push(`${selectedRoomCount}-ოთახიანი`);
+  if (selectedSide) selectionLabels.push(SIDE_LABEL[selectedSide]);
+  panelTitle.textContent = `${selected}-ე სართული${selectionLabels.length ? ` · ${selectionLabels.join(" · ")}` : ""}`;
+  const units = [...(unitsByFloor.get(selected) || [])]
+    .filter((u) => !selectedSide || u.side === selectedSide)
+    .filter((u) => !selectedRoomCount || roomCountForUnit(u) === selectedRoomCount)
+    .sort((a, b) => a.unit.localeCompare(b.unit, "ka", { numeric: true }));
+  if ((selectedSide || selectedRoomCount) && !units.length) {
+    unitsBox.innerHTML = `<div class="unit"><div class="owner empty">ამ არჩევანისთვის ბინები ვერ მოიძებნა</div></div>`;
+    return;
+  }
+  for (const u of units) unitsBox.appendChild(unitCard(u));
+}
+
+// --- load ---------------------------------------------------------------
+const loader = new GLTFLoader();
+loader.load(
+  "../output/building.glb",
+  (gltf) => {
+    const root = gltf.scene;
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.material.side = THREE.DoubleSide;
+      if (o.material.name === "Concrete") {
+        o.material = o.material.clone();
+        o.material.color.set(0xf0e4cb);
+        o.material.roughness = 0.95;
+        o.material.emissive.set(0x716044);
+        o.material.emissiveIntensity = 0.4;
+      }
+      if (o.material.name === "SlabBand") {
+        o.material = o.material.clone();
+        o.material.color.set(0xbab19d);
+        o.material.roughness = 0.92;
+      }
+      if (o.name === "Ground") {
+        o.material = o.material.clone();
+        o.material.map = null;
+        o.material.color.set(0x6d7958);
+        o.material.roughness = 1;
+      }
+      const m = /^Floor_(\d{2})/.exec(o.name);
+      if (m) {
+        const n = Number(m[1]);
+        o.userData.floor = n;
+        if (!floorMeshes.has(n)) floorMeshes.set(n, []);
+        floorMeshes.get(n).push(o);
+      }
+    });
+    scene.add(root);
+    const box = new THREE.Box3().setFromObject(root);
+    const c = box.getCenter(new THREE.Vector3());
+    controls.target.copy(c);
+    camera.position.set(c.x + 43, c.y + 22, c.z + 76);
+    controls.update();
+
+    const ab = document.createElement("button");
+    ab.className = "aux-btn";
+    ab.textContent = "არასაცხ.";
+    ab.setAttribute("aria-label", "არასაცხოვრებელი ფართები");
+    ab.onclick = () => toggleAux();
+    floorBar.appendChild(ab);
+    for (let n = 1; n <= 13; n++) {
+      const b = document.createElement("button");
+      b.textContent = n;
+      b.setAttribute("aria-label", `${n}-ე სართული`);
+      b.dataset.floor = n;
+      b.onclick = () => selectFloor(n);
+      floorBar.appendChild(b);
+    }
+    refreshSelection();
+    resize();
+    loadingOverlay.classList.add("hidden");
+  },
+  undefined,
+  (e) => {
+    errBox.style.display = "grid";
+    errBox.textContent =
+      "building.glb ვერ ჩაიტვირთა. გაუშვი ლოკალური სერვერი web/ საქაღალდიდან.";
+    console.error(e);
+    loadingOverlay.classList.add("hidden");
+  }
+);
+
+// --- picking ------------------------------------------------------------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+let down = null;
+
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  down = { x: e.clientX, y: e.clientY };
+});
+
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!down) return;
+  if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+  down = null;
+
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+
+  const all = [];
+  for (const meshes of floorMeshes.values()) all.push(...meshes);
+  const hits = ray.intersectObjects(all, false);
+  if (hits.length) {
+    const hit = hits[0];
+    const zone = classifyPoint(hit.point);
+    if (zone) {
+      const floor = hit.object.userData.floor;
+      if (floor) selectBuildingSide(floor, zone.side, zone.roomCount);
+    }
+  }
+});
+
+roomFilters.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-rooms]");
+  if (button) selectRoomCount(Number(button.dataset.rooms));
+});
+
+// --- loop ---------------------------------------------------------------
+function resize() {
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+addEventListener("resize", resize);
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+loadResidents().then(() => { renderPanel(); });
+</script>
+</body>
+</html>
