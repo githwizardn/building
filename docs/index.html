@@ -356,11 +356,9 @@ async function loadResidents() {
 function unitCard(u) {
   const div = document.createElement("div");
   div.className = "unit";
-  const sideCls = u.side === "small" ? "small" : "large";
-  let html =
+    let html =
     `<div class="top"><span class="no">ბინა ${u.unit}</span>` +
-    `<span class="meta">${u.area != null ? u.area + " მ²" : ""}</span></div>` +
-    `<span class="side ${sideCls}">${SIDE_LABEL[sideCls]}</span>`;
+    `<span class="meta">${u.area != null ? u.area + " მ²" : ""}</span></div>`;
 
     const owner = u.owner || "";
   if (owner) html += `<div class="owner" title="კონფიდენციალურობის დაცვის მიზნით, სახელები დაფარულია">${owner}</div>`;
@@ -596,9 +594,8 @@ function renderPanel() {
       : "აირჩიე სართული ან ბინის ზონა";
     return;
   }
-  const selectionLabels = [];
+    const selectionLabels = [];
   if (selectedRoomCount) selectionLabels.push(`${selectedRoomCount}-ოთახიანი`);
-  if (selectedSide) selectionLabels.push(SIDE_LABEL[selectedSide]);
   panelTitle.textContent = `${selected}-ე სართული${selectionLabels.length ? ` · ${selectionLabels.join(" · ")}` : ""}`;
   const units = [...(unitsByFloor.get(selected) || [])]
     .filter((u) => !selectedSide || u.side === selectedSide)
