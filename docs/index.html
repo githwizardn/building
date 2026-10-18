@@ -37,14 +37,24 @@
   #floors button.aux-btn { width: 54px; font-size: 10px; line-height: 1.15; padding: 6px 2px; color: #a9dca9; border-color: #38513a; }
   #floors button.aux-btn.on { background: #2c3a2c; border-color: #6fbf6f; color: #d6f5d6; }
 
-   #panel {
+  #time-controls {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; border-radius: 30px;
+    background: rgba(17,21,28,.85); border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px); color: #e8edf4; font-size: 13px;
+  }
+  #time-slider { width: 180px; cursor: pointer; accent-color: #6ba3e0; }
+  #time-display { font-weight: bold; min-width: 45px; text-align: center; }
+  #weather-status { font-size: 11px; color: #a9b5c5; margin-left: 8px; }
+
+  #panel {
     width: 320px; flex: none; overflow-y: auto;
     padding: 18px; 
-    background: rgba(23, 29, 38, 0.85); /* ნახევრად გამჭვირვალე */
-    backdrop-filter: blur(12px); /* ბლურის ეფექტი */
-    border-left: 1px solid rgba(255, 255, 255, 0.1); /* ნაზი ხაზი */
+    background: rgba(23, 29, 38, 0.85); 
+    backdrop-filter: blur(12px); 
+    border-left: 1px solid rgba(255, 255, 255, 0.1); 
   }
-
 
   #panel h1 { margin: 0 0 2px; font-size: 17px; }
   #panel .sub { margin: 0 0 16px; font-size: 12px; color: #7f8b9c; }
@@ -90,6 +100,8 @@
     #floors button { width: 40px; min-width: 40px; min-height: 36px; }
     #floors button.aux-btn { width: 58px; min-width: 58px; }
     #hint { right: 8px; bottom: 58px; left: 8px; text-align: center; font-size: 11px; }
+    #time-controls { bottom: 70px; padding: 8px 12px; }
+    #time-slider { width: 120px; }
   }
 </style>
 </head>
@@ -99,6 +111,14 @@
     <div id="loading-overlay">იტვირთება...</div>
     <div id="floors"></div>
     <div id="hint">დააჭირე ბინის ზონას ან აირჩიე 2/3-ოთახიანი</div>
+    
+    <div id="time-controls">
+      <span>🕒</span>
+      <input type="range" id="time-slider" min="0" max="24" step="0.1" value="12">
+      <span id="time-display">12:00</span>
+      <span id="weather-status">ამინდი იტვირთება...</span>
+    </div>
+
     <div id="err"></div>
   </div>
   <aside id="panel">
@@ -122,11 +142,13 @@
   }
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.min.js"></script>
 
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { Sky } from "three/addons/objects/Sky.js";
 
 const wrap = document.getElementById("canvas-wrap");
 const floorBar = document.getElementById("floors");
@@ -136,20 +158,21 @@ const panelTitle = document.getElementById("panel-title");
 const errBox = document.getElementById("err");
 const dataError = document.getElementById("data-error");
 const loadingOverlay = document.getElementById("loading-overlay");
+const timeSlider = document.getElementById("time-slider");
+const timeDisplay = document.getElementById("time-display");
+const weatherStatus = document.getElementById("weather-status");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
-// ჩართულია ჩრდილები
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.6; // 👈 ოდნავ შემცირებული (იყო 0.5, ახლა 0.6)
 wrap.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x7b9bbd); 
-scene.fog = new THREE.Fog(0x7b9bbd, 150, 450);
-
-const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 2000);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 10000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
@@ -159,40 +182,166 @@ controls.maxDistance = 400;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.5;
 
-// კამერის ანიმაციის ცვლადები
-let isAnimating = false;
-const targetCamPos = new THREE.Vector3();
-const targetLookAt = new THREE.Vector3();
-controls.addEventListener('start', () => { isAnimating = false; });
+// ცა და განათება
+const sky = new Sky();
+sky.scale.setScalar(10000);
+scene.add(sky);
+const skyUniforms = sky.material.uniforms;
+skyUniforms['turbidity'].value = 10;
+skyUniforms['rayleigh'].value = 2;
+skyUniforms['mieCoefficient'].value = 0.005;
+skyUniforms['mieDirectionalG'].value = 0.8;
 
-scene.add(new THREE.HemisphereLight(0xe5efff, 0x68634f, 1.9));
-const sun = new THREE.DirectionalLight(0xffffff, 2.5);
-sun.position.set(-60, 90, -100); // 
-// მზის ჩრდილის პარამეტრები
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -80;
-sun.shadow.camera.right = 80;
-sun.shadow.camera.top = 80;
-sun.shadow.camera.bottom = -80;
-sun.shadow.camera.far = 300;
-sun.shadow.bias = -0.0005;
-scene.add(sun);
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -80;
+sunLight.shadow.camera.right = 80;
+sunLight.shadow.camera.top = 80;
+sunLight.shadow.camera.bottom = -80;
+sunLight.shadow.camera.far = 300;
+sunLight.shadow.bias = -0.0005;
+scene.add(sunLight);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(600, 600),
-  new THREE.MeshStandardMaterial({ color: 0x4b5e41, roughness: 0.9 }) // უფრო მუქი და ბუნებრივი მწვანე
-);
+const ambientLight = new THREE.HemisphereLight(0xe5efff, 0x68634f, 1.0);
+scene.add(ambientLight);
 
+// მზის პოზიციის განახლება
+const sunPosition = new THREE.Vector3();
+const lat = 41.708531;
+const lon = 44.880144;
 
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.05;
-ground.receiveShadow = true; // მიწა იღებს ჩრდილს
-scene.add(ground);
+function updateSunAndSky(date) {
+  const sunPos = SunCalc.getPosition(date, lat, lon);
+  const phi = Math.PI / 2 - sunPos.altitude;
+  const theta = Math.PI - sunPos.azimuth; 
 
-// --- data ---------------------------------------------------------------
+  sunPosition.setFromSphericalCoords(1, phi, theta);
+  skyUniforms['sunPosition'].value.copy(sunPosition);
+  sunLight.position.copy(sunPosition).multiplyScalar(100);
+
+  const altitude = sunPos.altitude;
+  
+  if (altitude > 0) {
+    // დღე
+    sunLight.color.setHex(0xffffff);
+    sunLight.intensity = 2.5; // 👈 ოდნავ უფრო ძლიერი
+    ambientLight.intensity = 1.2; // 👈 ოდნავ უფრო ძლიერი
+  } else {
+    // ღამე (მთვარის შუქი)
+    sunLight.color.setHex(0x4477aa); 
+    sunLight.intensity = 0.2;
+    ambientLight.intensity = 0.4;
+  }
+
+  // ცის პარამეტრები დროის მიხედვით
+  const hours = date.getHours() + date.getMinutes() / 60;
+  if (hours < 6 || hours > 20) {
+    skyUniforms['turbidity'].value = 20; 
+    skyUniforms['rayleigh'].value = 4;
+    skyUniforms['mieCoefficient'].value = 0.01;
+    scene.fog = new THREE.Fog(0x050a14, 500, 4000); // 👈 ნისლი ძალიან შორს
+  } else if (hours < 8 || hours > 18) {
+    skyUniforms['turbidity'].value = 15;
+    skyUniforms['rayleigh'].value = 3;
+    scene.fog = new THREE.Fog(0x7b9bbd, 500, 4000); // 👈 ნისლი ძალიან შორს
+  } else {
+    skyUniforms['turbidity'].value = 10;  // 👈 ბუნებრივი ცა
+    skyUniforms['rayleigh'].value = 2;    // 👈 ბუნებრივი ცა
+    scene.fog = new THREE.Fog(0x9fc4e5, 500, 4000); // 👈 ნისლი ძალიან შორს
+  }
+}
+
+// ამინდი
+let rainParticles = null;
+let snowParticles = null;
+
+function createPrecipitation(type) {
+  if (rainParticles) { scene.remove(rainParticles); rainParticles = null; }
+  if (snowParticles) { scene.remove(snowParticles); snowParticles = null; }
+
+  const particleCount = 3000;
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 100;
+    positions[i * 3 + 1] = Math.random() * 80;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  let material;
+  if (type === 'rain') {
+    material = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.15, transparent: true, opacity: 0.6 });
+  } else {
+    material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.3, transparent: true, opacity: 0.8 });
+  }
+
+  const particles = new THREE.Points(geometry, material);
+  scene.add(particles);
+
+  if (type === 'rain') rainParticles = particles;
+  else snowParticles = particles;
+}
+
+async function fetchWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const weather = data.current_weather;
+    const code = weather.weathercode;
+    
+    let statusText = "მოწმენდილი";
+    let effect = null;
+
+    if (code >= 51 && code <= 67) { statusText = "წვიმა"; effect = 'rain'; }
+    else if (code >= 71 && code <= 77) { statusText = "თოვლი"; effect = 'snow'; }
+    else if (code >= 80 && code <= 82) { statusText = "ძლიერი წვიმა"; effect = 'rain'; }
+    else if (code >= 85 && code <= 86) { statusText = "ძლიერი თოვლი"; effect = 'snow'; }
+    else if (code >= 95) { statusText = "ჭექა-ქუხილი"; effect = 'rain'; }
+    else if (code >= 1 && code <= 3) { statusText = "ღრუბლიანი"; }
+
+    weatherStatus.textContent = `🌡️ ${weather.temperature}°C · ${statusText}`;
+    if (effect) createPrecipitation(effect);
+  } catch (e) {
+    weatherStatus.textContent = "ამინდი მიუწვდომელია";
+  }
+}
+
+let isTimeSync = true;
+let currentDate = new Date();
+
+function updateTimeDisplay() {
+  const hours = currentDate.getHours().toString().padStart(2, '0');
+  const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+  timeDisplay.textContent = `${hours}:${minutes}`;
+  timeSlider.value = currentDate.getHours() + currentDate.getMinutes() / 60;
+}
+
+setInterval(() => {
+  if (isTimeSync) {
+    currentDate = new Date();
+    updateTimeDisplay();
+    updateSunAndSky(currentDate);
+  }
+}, 1000);
+
+timeSlider.addEventListener('input', (e) => {
+  isTimeSync = false;
+  const val = parseFloat(e.target.value);
+  const h = Math.floor(val);
+  const m = Math.floor((val - h) * 60);
+  currentDate.setHours(h, m, 0);
+  updateTimeDisplay();
+  updateSunAndSky(currentDate);
+});
+
+// --- 3D მოდელი და მონაცემები ---
 const unitsByFloor = new Map();
 let nonResidential = [];
+const SIDE_LABEL = { large: "დიდი ლიფტის მხარე", small: "პატარა ლიფტის მხარე" };
 
 async function loadResidents() {
   try {
@@ -203,9 +352,7 @@ async function loadResidents() {
     if (!res.ok && isLocal) res = await fetch("../output/residents.public.json");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (!Array.isArray(data.units) || !Array.isArray(data.non_residential)) {
-      throw new Error("მონაცემების სტრუქტურა არასწორია");
-    }
+    if (!Array.isArray(data.units) || !Array.isArray(data.non_residential)) throw new Error("სტრუქტურა");
     for (const u of data.units) {
       if (!unitsByFloor.has(u.floor)) unitsByFloor.set(u.floor, []);
       unitsByFloor.get(u.floor).push(u);
@@ -214,22 +361,16 @@ async function loadResidents() {
   } catch (e) {
     dataError.textContent = "ბინების მონაცემები ვერ ჩაიტვირთა.";
     dataError.style.display = "block";
-    console.error("ბინების მონაცემების ჩატვირთვა ვერ მოხერხდა:", e);
   }
 }
 
 function unitCard(u) {
   const div = document.createElement("div");
   div.className = "unit";
-  let html =
-    `<div class="top"><span class="no">ბინა ${u.unit}</span>` +
-    `<span class="meta">${u.area != null ? u.area + " მ²" : ""}</span></div>`;
-
+  let html = `<div class="top"><span class="no">ბინა ${u.unit}</span><span class="meta">${u.area != null ? u.area + " მ²" : ""}</span></div>`;
   const owner = u.owner || "";
   if (owner) html += `<div class="owner" title="კონფიდენციალურობის დაცვის მიზნით, სახელები დაფარულია">${owner}</div>`;
-
   if (u.pn) html += `<div class="pn">პ/ნ: ${u.pn}</div>`;
-
   if (u.doc || u.docNo || u.date) {
     const parts = [];
     if (u.doc) parts.push(`<b>${u.doc}</b>`);
@@ -237,12 +378,11 @@ function unitCard(u) {
     if (u.date) parts.push(u.date);
     html += `<div class="doc">${parts.join(" · ")}</div>`;
   }
-  if (u.mortgage) html += `<div class="mortgage">იპოთეკა: <b>${u.mortgage.bank}</b>${u.mortgage.date ? " · " + u.mortgage.date : ""}${u.mortgage.contract ? " · № " + u.mortgage.contract : ""}</div>`;
+  if (u.mortgage) html += `<div class="mortgage">იპოთეკა: <b>${u.mortgage.bank}</b></div>`;
   if (u.cadastral) html += `<div class="doc">საკადასტრო: ${u.cadastral}</div>`;
   if (u.missing) html += `<span class="flag warn">რეესტრში არ ფიგურირებს</span>`;
   if (u.workshop) html += `<span class="flag work">სახელოსნო</span>`;
   if (u.storage) html += `<span class="flag store">სათავსო</span>`;
-
   div.innerHTML = html;
   return div;
 }
@@ -250,31 +390,17 @@ function unitCard(u) {
 function auxCard(a) {
   const div = document.createElement("div");
   div.className = "unit aux";
-  let html =
-    `<div class="top"><span class="no">${a.label}</span>` +
-    `<span class="meta">${a.area != null ? a.area + " მ²" : ""}</span></div>` +
-    `<span class="flag ${a.type === "garage" ? "store" : "work"}">${a.type === "basement" ? "სარდაფი" : a.type === "storage" ? "სათავსო" : "ავტოფარეხი"}</span>`;
+  let html = `<div class="top"><span class="no">${a.label}</span><span class="meta">${a.area != null ? a.area + " მ²" : ""}</span></div>`;
   if (a.owner) html += `<div class="owner">${a.owner}</div>`;
-  if (a.pn) html += `<div class="pn">პ/ნ: ${a.pn}</div>`;
-  if (a.doc || a.docNo || a.date) {
-    const parts = [];
-    if (a.doc) parts.push(`<b>${a.doc}</b>`);
-    if (a.docNo) parts.push(`№ ${a.docNo}`);
-    if (a.date) parts.push(a.date);
-    html += `<div class="doc">${parts.join(" · ")}</div>`;
-  }
-  if (a.cadastral) html += `<div class="doc">საკადასტრო: ${a.cadastral}</div>`;
-  if (a.alsoUnit) html += `<div class="doc">ასევე ფლობს ბინა ${a.alsoUnit}</div>`;
   div.innerHTML = html;
   return div;
 }
 
-// --- floors -------------------------------------------------------------
 const floorMeshes = new Map();
 const BASE = new THREE.Color(0xcfd3d8);
 const HOT = new THREE.Color(0x4d8fd6);
 const ROOM_ZONES = [
-  { roomCount: 2, side: "small", minX: -6.75, maxX: 3.6, minZ:  -1.7, maxZ: 14.25 },
+  { roomCount: 2, side: "small", minX: -6.75, maxX: 3.6, minZ: -1.7, maxZ: 14.25 },
   { roomCount: 3, side: "small", minX: -18.5, maxX: -6.75, minZ: -5, maxZ: 14.25 },
   { roomCount: 2, side: "large", minX: -3.56, maxX: 6.8, minZ: -16.5, maxZ: 0.75 },
   { roomCount: 3, side: "large", minX: 6.8, maxX: 18.5, minZ: -16.5, maxZ: 3.5 },
@@ -282,10 +408,7 @@ const ROOM_ZONES = [
 
 function classifyPoint(point) {
   for (const zone of ROOM_ZONES) {
-    if (
-      point.x >= zone.minX && point.x <= zone.maxX &&
-      point.z >= zone.minZ && point.z <= zone.maxZ
-    ) {
+    if (point.x >= zone.minX && point.x <= zone.maxX && point.z >= zone.minZ && point.z <= zone.maxZ) {
       return { roomCount: zone.roomCount, side: zone.side };
     }
   }
@@ -293,16 +416,16 @@ function classifyPoint(point) {
 }
 let sideHighlight = null;
 
-const sideHighlightMaterial = new THREE.MeshBasicMaterial({
-  color: 0x63b4ff,
-  transparent: true,
-  opacity: 0.38,
-  depthWrite: false,
-  polygonOffset: true,
-  polygonOffsetFactor: -1,
+const sideHighlightMaterial = new THREE.MeshBasicMaterial({ 
+  color: 0x63b4ff, 
+  transparent: true, 
+  opacity: 0.6, 
+  depthWrite: false, 
   side: THREE.DoubleSide,
+  polygonOffset: true,         
+  polygonOffsetFactor: -2,      
+  polygonOffsetUnits: -2        
 });
-
 let selected = null;
 let selectedSide = null;
 let selectedRoomCount = null;
@@ -323,9 +446,7 @@ function clearSideHighlight() {
   sideHighlight = null;
 }
 
-function roomCountForUnit(unit) {
-  return unit.rooms || null;
-}
+function roomCountForUnit(unit) { return unit.rooms || null; }
 
 function showFloorHighlight(floor, side, roomCount) {
   clearSideHighlight();
@@ -402,21 +523,19 @@ function selectFloor(n) {
   selectedRoomCount = null;
 
   if (selected !== null) {
-    controls.autoRotate = false; // გამორთე ტრიალი, რომ კამერამ ზუსტად იფრინოს
+    controls.autoRotate = false; 
     const floorY = 1.5 + (selected - 1) * 3 + 1.5; 
     targetLookAt.set(0, floorY, 0); 
     targetCamPos.set(45, floorY + 10, 65); 
     isAnimating = true;
   } else {
-    controls.autoRotate = false; // ანიმაციის დროსაც გამორთული იყოს
+    controls.autoRotate = false; 
     targetLookAt.set(0, 15, 0);
     targetCamPos.set(43, 22, 76);
     isAnimating = true;
   }
-
   refreshSelection();
 }
-
 
 function selectRoomCount(roomCount) {
   auxMode = false;
@@ -488,6 +607,7 @@ function renderPanel() {
     .filter((u) => !selectedSide || u.side === selectedSide)
     .filter((u) => !selectedRoomCount || roomCountForUnit(u) === selectedRoomCount)
     .sort((a, b) => a.unit.localeCompare(b.unit, "ka", { numeric: true }));
+  
   if ((selectedSide || selectedRoomCount) && !units.length) {
     unitsBox.innerHTML = `<div class="unit"><div class="owner empty">ამ არჩევანისთვის ბინები ვერ მოიძებნა</div></div>`;
     return;
@@ -495,7 +615,6 @@ function renderPanel() {
   for (const u of units) unitsBox.appendChild(unitCard(u));
 }
 
-// --- load ---------------------------------------------------------------
 const loader = new GLTFLoader();
 loader.load(
   "../output/building.glb",
@@ -506,12 +625,29 @@ loader.load(
       o.castShadow = true;
       o.receiveShadow = true;
       o.material.side = THREE.DoubleSide;
+      
       if (o.material.name === "Concrete") {
         o.material = o.material.clone();
-        o.material.color.set(0xf0e4cb);
-        o.material.roughness = 0.95;
-        o.material.emissive.set(0x716044);
-        o.material.emissiveIntensity = 0.4;
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f4ece0'; 
+        ctx.fillRect(0, 0, 512, 512);
+        for(let i=0; i<4000; i++) {
+          const x = Math.random() * 512;
+          const y = Math.random() * 512;
+          const w = Math.random() * 30;
+          const h = Math.random() * 50;
+          ctx.fillStyle = Math.random() > 0.5 ? 'rgba(120, 110, 90, 0.1)' : 'rgba(160, 150, 130, 0.15)';
+          ctx.fillRect(x, y, w, h);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2, 2);
+        o.material.map = texture;
+        o.material.color.set(0xffffff); 
+        o.material.roughness = 1;
       }
       if (o.material.name === "SlabBand") {
         o.material = o.material.clone();
@@ -534,26 +670,134 @@ loader.load(
     });
     scene.add(root);
 
+    // ==========================================
+    // 🏙️ გარემოს განლაგება (ჩრდილოეთი = +Z, სამხრეთი = -Z)
+    // ==========================================
+    
+    // მიწა (ბალახი) - გაზრდილი 5000x5000
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(5000, 5000),
+      new THREE.MeshStandardMaterial({ color: 0x5a6e4b, roughness: 0.9 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.1;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.95 });
+    const buildingApron = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), asphaltMat);
+    buildingApron.rotation.x = -Math.PI / 2;
+    buildingApron.position.set(0, 0.01, 0); 
+    buildingApron.receiveShadow = true;
+    scene.add(buildingApron);
+
+    // პარკინგი ჩრდილოეთით (Z = 30)
+    const parkingLot = new THREE.Mesh(new THREE.PlaneGeometry(60, 25), asphaltMat);
+    parkingLot.rotation.x = -Math.PI / 2;
+    parkingLot.position.set(0, 0.02, 30); 
+    parkingLot.receiveShadow = true;
+    scene.add(parkingLot);
+
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.6, transparent: true });
+    for (let x = -25; x <= 25; x += 3.5) {
+      const line = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 6), lineMat);
+      line.rotation.x = -Math.PI / 2;
+      line.position.set(x, 0.03, 30); 
+      scene.add(line);
+    }
+
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3320 });
+    const leafMat1 = new THREE.MeshStandardMaterial({ color: 0x2d4c1e }); 
+    const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x426b2d }); 
+    const pineMat = new THREE.MeshStandardMaterial({ color: 0x1a3312 }); 
+
+    function createTree(x, z, type = 'deciduous') {
+      const tree = new THREE.Group();
+      if (type === 'pine') {
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 2), trunkMat);
+        trunk.position.y = 1; trunk.castShadow = true; tree.add(trunk);
+        const cone1 = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 8), pineMat);
+        cone1.position.y = 2.5; cone1.castShadow = true; tree.add(cone1);
+        const cone2 = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 8), pineMat);
+        cone2.position.y = 4; cone2.castShadow = true; tree.add(cone2);
+      } else {
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 3), trunkMat);
+        trunk.position.y = 1.5; trunk.castShadow = true; tree.add(trunk);
+        const leaves1 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.8, 1), leafMat1);
+        leaves1.position.y = 3.5; leaves1.castShadow = true; tree.add(leaves1);
+        const leaves2 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.4, 1), leafMat2);
+        leaves2.position.set(0.8, 4.5, 0.5); leaves2.castShadow = true; tree.add(leaves2);
+        const leaves3 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.2, 1), leafMat1);
+        leaves3.position.set(-0.7, 4.2, -0.6); leaves3.castShadow = true; tree.add(leaves3);
+      }
+      const scale = 0.8 + Math.random() * 0.4;
+      tree.scale.set(scale, scale, scale);
+      tree.position.set(x, 0, z);
+      scene.add(tree);
+    }
+
+    // ხეები სამხრეთით (Z < -15)
+    for (let x = -30; x <= 30; x += 5) {
+      createTree(x + Math.random()*2, -22 - Math.random()*5, 'deciduous');
+      if (x % 10 === 0) createTree(x, -28, 'pine');
+    }
+    // ხეები აღმოსავლეთით (X > 20)
+    for (let z = -15; z <= 15; z += 4) {
+      createTree(24 + Math.random()*3, z, 'deciduous');
+    }
+    // ხეები დასავლეთით (X < -20)
+    for (let z = -15; z <= 15; z += 5) {
+      createTree(-24 - Math.random()*3, z, Math.random() > 0.5 ? 'deciduous' : 'pine');
+    }
+
+    const carColors = [0xffffff, 0x333333, 0x8b0000, 0x1a3b5c, 0x555555, 0x8a8a8a];
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 });
+    const tireMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+
+    function createCar(x, z, rotationY = 0) {
+      const car = new THREE.Group();
+      const randomColor = carColors[Math.floor(Math.random() * carColors.length)];
+      const bodyMat = new THREE.MeshStandardMaterial({ color: randomColor, roughness: 0.4, metalness: 0.3 });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 4), bodyMat);
+      body.position.y = 0.6; body.castShadow = true; car.add(body);
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 2.2), glassMat);
+      cabin.position.set(0, 1.3, -0.2); cabin.castShadow = true; car.add(cabin);
+      const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 16);
+      for (let i = 0; i < 4; i++) {
+        const wheel = new THREE.Mesh(wheelGeo, tireMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(i < 2 ? 0.9 : -0.9, 0.35, i % 2 === 0 ? 1.3 : -1.3);
+        wheel.castShadow = true; car.add(wheel);
+      }
+      car.position.set(x, 0, z);
+      car.rotation.y = rotationY;
+      scene.add(car);
+    }
+
+    for (let x = -22; x <= 22; x += 3.5) {
+      if (Math.random() > 0.3) createCar(x, 27.5, Math.PI); 
+      if (Math.random() > 0.5) createCar(x, 32.5, 0); 
+    }
+
+    // ==========================================
+
     const box = new THREE.Box3().setFromObject(root);
     const c = box.getCenter(new THREE.Vector3());
     controls.target.copy(c);
     camera.position.set(c.x + 43, c.y + 22, c.z + 76);
     controls.update();
 
-    // საწყისი პოზიციების შენახვა ანიმაციისთვის
     targetCamPos.copy(camera.position);
     targetLookAt.copy(controls.target);
 
     const ab = document.createElement("button");
     ab.className = "aux-btn";
     ab.textContent = "არასაცხ.";
-    ab.setAttribute("aria-label", "არასაცხოვრებელი ფართები");
     ab.onclick = () => toggleAux();
     floorBar.appendChild(ab);
     for (let n = 1; n <= 13; n++) {
       const b = document.createElement("button");
       b.textContent = n;
-      b.setAttribute("aria-label", `${n}-ე სართული`);
       b.dataset.floor = n;
       b.onclick = () => selectFloor(n);
       floorBar.appendChild(b);
@@ -566,38 +810,29 @@ loader.load(
   (e) => {
     errBox.style.display = "grid";
     errBox.textContent = "building.glb ვერ ჩაიტვირთა.";
-    console.error(e);
     loadingOverlay.classList.add("hidden");
   }
 );
 
-// --- picking ------------------------------------------------------------
 const ray = new THREE.Raycaster();
 const ptr = new THREE.Vector2();
 let down = null;
 
-renderer.domElement.addEventListener("pointerdown", (e) => {
-  down = { x: e.clientX, y: e.clientY };
-});
-
+renderer.domElement.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY }; });
 renderer.domElement.addEventListener("pointerup", (e) => {
-  if (!down) return;
-  if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
   down = null;
-
   const r = renderer.domElement.getBoundingClientRect();
   ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
   ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   ray.setFromCamera(ptr, camera);
-
   const all = [];
   for (const meshes of floorMeshes.values()) all.push(...meshes);
   const hits = ray.intersectObjects(all, false);
   if (hits.length) {
-    const hit = hits[0];
-    const zone = classifyPoint(hit.point);
+    const zone = classifyPoint(hits[0].point);
     if (zone) {
-      const floor = hit.object.userData.floor;
+      const floor = hits[0].object.userData.floor;
       if (floor) selectBuildingSide(floor, zone.side, zone.roomCount);
     }
   }
@@ -608,7 +843,6 @@ roomFilters.addEventListener("click", (event) => {
   if (button) selectRoomCount(Number(button.dataset.rooms));
 });
 
-// --- loop ---------------------------------------------------------------
 function resize() {
   const w = wrap.clientWidth;
   const h = wrap.clientHeight;
@@ -618,34 +852,49 @@ function resize() {
 }
 addEventListener("resize", resize);
 
+let isAnimating = false;
+const targetCamPos = new THREE.Vector3();
+const targetLookAt = new THREE.Vector3();
+controls.addEventListener('start', () => { isAnimating = false; });
+
 renderer.setAnimationLoop(() => {
   if (isAnimating) {
-    // 👇 ანიმაციის დროს ჩვენ თვითონ ვმართავთ კამერას
     camera.position.lerp(targetCamPos, 0.05);
     controls.target.lerp(targetLookAt, 0.05);
-    
     if (camera.position.distanceTo(targetCamPos) < 0.1) {
       isAnimating = false;
-      // 👇 თუ ფრენა დასრულდა და მთავარ ხედზე ვართ, ტრიალი ისევ ჩავრთოთ
-      if (selected === null) {
-        controls.autoRotate = true;
-      }
+      if (selected === null) controls.autoRotate = true;
     }
   } else {
-    // 👇 მხოლოდ მაშინ ვაახლებთ კონტროლს, როცა ანიმაცია არ მიდის
     controls.update();
   }
 
   if (sideHighlight) {
-    const time = Date.now() * 0.0005;
-    sideHighlightMaterial.opacity = 0.25 + (Math.sin(time) * 0.15);
+    const time = Date.now() * 0.0015; //
+    sideHighlightMaterial.opacity = 0.5 + (Math.sin(time) * 0.3); 
   }
-  
+
+  if (rainParticles || snowParticles) {
+    const particles = rainParticles || snowParticles;
+    const positions = particles.geometry.attributes.position.array;
+    for (let i = 1; i < positions.length; i += 3) {
+      positions[i] -= 0.8;
+      if (positions[i] < 0) positions[i] = 80;
+    }
+    particles.geometry.attributes.position.needsUpdate = true;
+  }
+
   renderer.render(scene, camera);
 });
 
-
-loadResidents().then(() => { renderPanel(); });
+async function init() {
+  await fetchWeather();
+  updateTimeDisplay();
+  updateSunAndSky(currentDate);
+  await loadResidents();
+  renderPanel();
+}
+init();
 </script>
 </body>
 </html>
