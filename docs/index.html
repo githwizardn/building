@@ -3,15 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>კორპუსი</title>
+<link rel="icon" href="data:,">
+<title>კორპუსი - რეალური დროის სიმულატორი</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #11151c; }
   body { font-family: system-ui, "Segoe UI", sans-serif; color: #e8edf4; }
   #app { position: fixed; inset: 0; display: flex; }
-  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
-  #canvas-wrap canvas { position: absolute; inset: 0; display: block; }
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; background: #11151c; }
+  #canvas-wrap canvas { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; }
 
   #loading-overlay {
     position: absolute; inset: 0; background: #11151c; z-index: 1000;
@@ -36,6 +37,29 @@
   #floors button.on { background: #3d6ea8; border-color: #6ba3e0; color: #fff; }
   #floors button.aux-btn { width: 54px; font-size: 10px; line-height: 1.15; padding: 6px 2px; color: #a9dca9; border-color: #38513a; }
   #floors button.aux-btn.on { background: #2c3a2c; border-color: #6fbf6f; color: #d6f5d6; }
+
+  #explode-btn {
+    position: absolute; top: 12px; left: 75px; z-index: 6;
+    padding: 10px 14px; cursor: pointer; border-radius: 10px;
+    background: rgba(17,21,28,.78); border: 1px solid #2b3442;
+    backdrop-filter: blur(6px);
+    color: #cfd8e3; font: 600 13px/1 system-ui;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s ease;
+  }
+  #explode-btn:hover { background: #26313f; color: #fff; }
+  #explode-btn.on { background: #3d6ea8; border-color: #6ba3e0; color: #fff; }
+
+  #view-apt-btn {
+    position: absolute; top: 12px; left: 200px; z-index: 6; 
+    padding: 10px 14px; cursor: pointer; border-radius: 10px; 
+    background: rgba(17,21,28,.78); border: 1px solid #2b3442; 
+    backdrop-filter: blur(6px);
+    color: #cfd8e3; font: 600 13px/1 system-ui;
+    transition: all 0.2s ease;
+  }
+  #view-apt-btn:hover { background: #26313f; color: #fff; }
+  #view-apt-btn.on { background: #3d6ea8; border-color: #6ba3e0; color: #fff; }
 
   #time-controls {
     position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -99,6 +123,8 @@
     #floors { top: auto; right: 8px; bottom: 8px; left: 8px; flex-direction: row; gap: 4px; overflow-x: auto; }
     #floors button { width: 40px; min-width: 40px; min-height: 36px; }
     #floors button.aux-btn { width: 58px; min-width: 58px; }
+    #explode-btn { top: 8px; left: 8px; padding: 6px 10px; font-size: 11px; }
+    #view-apt-btn { top: 8px; left: 110px; padding: 6px 10px; font-size: 11px; }
     #hint { right: 8px; bottom: 58px; left: 8px; text-align: center; font-size: 11px; }
     #time-controls { bottom: 70px; padding: 8px 12px; }
     #time-slider { width: 120px; }
@@ -110,6 +136,9 @@
   <div id="canvas-wrap">
     <div id="loading-overlay">იტვირთება...</div>
     <div id="floors"></div>
+    <button id="explode-btn">💥 სტრუქტურა</button>
+    <button id="view-apt-btn">🏠 სართული</button>
+
     <div id="hint">დააჭირე ბინის ზონას ან აირჩიე 2/3-ოთახიანი</div>
     
     <div id="time-controls">
@@ -146,6 +175,7 @@
 
 <script type="module">
 import * as THREE from "three";
+import { create2RoomApartment } from "./apartments.js"; 
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Sky } from "three/addons/objects/Sky.js";
@@ -161,6 +191,14 @@ const loadingOverlay = document.getElementById("loading-overlay");
 const timeSlider = document.getElementById("time-slider");
 const timeDisplay = document.getElementById("time-display");
 const weatherStatus = document.getElementById("weather-status");
+const explodeBtn = document.getElementById("explode-btn");
+const viewAptBtn = document.getElementById("view-apt-btn");
+
+let isAptViewActive = false;
+const apartmentsSideA = []; 
+const apartmentsSideB = [];
+let scalableShaftGroup = null;  
+let elevatorCars = [];          
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -168,10 +206,13 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.6; // 👈 ოდნავ შემცირებული (იყო 0.5, ახლა 0.6)
+renderer.toneMappingExposure = 0.6;
+renderer.localClippingEnabled = true;
 wrap.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x9fc4e5, 500, 4000); //  
+
 const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 10000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -182,7 +223,10 @@ controls.maxDistance = 400;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.5;
 
-// ცა და განათება
+const APT_POSITION_A = [0.76, 1.50, -12.72];
+const APT_POSITION_B = [-0.76, 1.50, 11.72]; 
+const APT_SCALE    = [1.00, 1.00, 1.22];
+
 const sky = new Sky();
 sky.scale.setScalar(10000);
 scene.add(sky);
@@ -206,7 +250,6 @@ scene.add(sunLight);
 const ambientLight = new THREE.HemisphereLight(0xe5efff, 0x68634f, 1.0);
 scene.add(ambientLight);
 
-// მზის პოზიციის განახლება
 const sunPosition = new THREE.Vector3();
 const lat = 41.708531;
 const lon = 44.880144;
@@ -223,36 +266,32 @@ function updateSunAndSky(date) {
   const altitude = sunPos.altitude;
   
   if (altitude > 0) {
-    // დღე
     sunLight.color.setHex(0xffffff);
-    sunLight.intensity = 2.5; // 👈 ოდნავ უფრო ძლიერი
-    ambientLight.intensity = 1.2; // 👈 ოდნავ უფრო ძლიერი
+    sunLight.intensity = 2.5;
+    ambientLight.intensity = 1.2;
   } else {
-    // ღამე (მთვარის შუქი)
     sunLight.color.setHex(0x4477aa); 
     sunLight.intensity = 0.2;
     ambientLight.intensity = 0.4;
   }
 
-  // ცის პარამეტრები დროის მიხედვით
   const hours = date.getHours() + date.getMinutes() / 60;
   if (hours < 6 || hours > 20) {
     skyUniforms['turbidity'].value = 20; 
     skyUniforms['rayleigh'].value = 4;
     skyUniforms['mieCoefficient'].value = 0.01;
-    scene.fog = new THREE.Fog(0x050a14, 500, 4000); // 👈 ნისლი ძალიან შორს
+    scene.fog.color.setHex(0x050a14); // ოპტიმიზაცია
   } else if (hours < 8 || hours > 18) {
     skyUniforms['turbidity'].value = 15;
     skyUniforms['rayleigh'].value = 3;
-    scene.fog = new THREE.Fog(0x7b9bbd, 500, 4000); // 👈 ნისლი ძალიან შორს
+    scene.fog.color.setHex(0x7b9bbd); // ოპტიმიზაცია
   } else {
-    skyUniforms['turbidity'].value = 10;  // 👈 ბუნებრივი ცა
-    skyUniforms['rayleigh'].value = 2;    // 👈 ბუნებრივი ცა
-    scene.fog = new THREE.Fog(0x9fc4e5, 500, 4000); // 👈 ნისლი ძალიან შორს
+    skyUniforms['turbidity'].value = 10; 
+    skyUniforms['rayleigh'].value = 2;  
+    scene.fog.color.setHex(0x9fc4e5); // ოპტიმიზაცია
   }
 }
 
-// ამინდი
 let rainParticles = null;
 let snowParticles = null;
 
@@ -312,6 +351,7 @@ async function fetchWeather() {
 
 let isTimeSync = true;
 let currentDate = new Date();
+let syncResumeTimer = null;
 
 function updateTimeDisplay() {
   const hours = currentDate.getHours().toString().padStart(2, '0');
@@ -330,18 +370,24 @@ setInterval(() => {
 
 timeSlider.addEventListener('input', (e) => {
   isTimeSync = false;
+  clearTimeout(syncResumeTimer);
+  
   const val = parseFloat(e.target.value);
   const h = Math.floor(val);
   const m = Math.floor((val - h) * 60);
   currentDate.setHours(h, m, 0);
   updateTimeDisplay();
   updateSunAndSky(currentDate);
+
+  // 10 წამის შემდეგ ისევ რეალურ დროზე გადადის
+  syncResumeTimer = setTimeout(() => {
+    isTimeSync = true;
+    currentDate = new Date();
+  }, 10000);
 });
 
-// --- 3D მოდელი და მონაცემები ---
 const unitsByFloor = new Map();
 let nonResidential = [];
-const SIDE_LABEL = { large: "დიდი ლიფტის მხარე", small: "პატარა ლიფტის მხარე" };
 
 async function loadResidents() {
   try {
@@ -397,6 +443,9 @@ function auxCard(a) {
 }
 
 const floorMeshes = new Map();
+const floorStairGroups = new Map();
+const roofMeshes = [];
+const entranceMeshes = []; 
 const BASE = new THREE.Color(0xcfd3d8);
 const HOT = new THREE.Color(0x4d8fd6);
 const ROOM_ZONES = [
@@ -431,7 +480,100 @@ let selectedSide = null;
 let selectedRoomCount = null;
 let auxMode = false;
 
+let isExploded = false;
+let shaftScale = 1;
+let targetShaftScale = 1;
+
+const shaftMinX = -4;
+const shaftMaxX = 4;
+const shaftMinZ = -6;
+const shaftMaxZ = 6;
+const clipPlanes = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), -shaftMinX),
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), -shaftMaxX),
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), -shaftMinZ),
+    new THREE.Plane(new THREE.Vector3(0, 0, -1), -shaftMaxZ)
+];
+
+explodeBtn.addEventListener("click", () => {
+  isExploded = !isExploded;
+  explodeBtn.classList.toggle("on", isExploded);
+  
+  selected = null;
+  selectedSide = null;
+  selectedRoomCount = null;
+  refreshSelection();
+
+  if (isExploded) {
+    targetLookAt.set(0, 50, 0); 
+    targetCamPos.set(110, 80, 130); 
+    isAnimating = true;
+    targetShaftScale = 3.37; 
+  } else {
+    targetLookAt.set(0, 15, 0);
+    targetCamPos.set(43, 22, 76);
+    isAnimating = true;
+    targetShaftScale = 1.0;
+  }
+
+  for (const [n, meshes] of floorMeshes) {
+    for (const mesh of meshes) {
+      if (mesh.isMesh && mesh.material) {
+        mesh.material.transparent = isExploded;
+        mesh.material.opacity = isExploded ? 0.3 : 1.0;
+        mesh.material.clippingPlanes = isExploded ? clipPlanes : [];
+        mesh.material.clipIntersection = true;
+        mesh.material.needsUpdate = true;
+      }
+    }
+  }
+
+  for (const mesh of roofMeshes) {
+    const nameLower = mesh.name.toLowerCase();
+    const isSolidBlock = nameLower.includes("machine") || nameLower.includes("service") || nameLower.includes("lift");
+    
+    if (isExploded) {
+      if (isSolidBlock) {
+        mesh.material.transparent = false;
+        mesh.material.opacity = 1.0;
+        mesh.material.clippingPlanes = []; 
+      } else {
+        mesh.material.transparent = true;
+        mesh.material.opacity = 0.001; 
+        mesh.material.clippingPlanes = []; 
+      }
+    } else {
+      mesh.material.transparent = false;
+      mesh.material.opacity = 1.0;
+      mesh.material.clippingPlanes = [];
+    }
+    mesh.material.needsUpdate = true;
+  }
+
+  for (const mesh of entranceMeshes) {
+    if (isExploded) {
+      mesh.material.transparent = true;
+      mesh.material.opacity = 0.001;
+    } else {
+      mesh.material.transparent = false;
+      mesh.material.opacity = 1.0;
+    }
+    mesh.material.needsUpdate = true;
+  }
+
+  if (isExploded) {
+    if (!isAptViewActive) {
+      apartmentsSideA.forEach(apt => apt.visible = true);
+      apartmentsSideB.forEach(apt => apt.visible = true);
+    }
+  } else {
+    apartmentsSideA.forEach(apt => apt.visible = false);
+    apartmentsSideB.forEach(apt => apt.visible = false);
+  }
+});
+
 function paint(mesh, on) {
+  if (!mesh.isMesh) return; 
   if (!mesh.userData.selectionMaterial) {
     mesh.userData.selectionMaterial = mesh.material.clone();
     mesh.material = mesh.userData.selectionMaterial;
@@ -486,6 +628,7 @@ function showFloorHighlight(floor, side, roomCount) {
     return regions;
   };
   for (const mesh of floorMeshes.get(floor) || []) {
+    if (!mesh.isMesh) continue; 
     mesh.updateWorldMatrix(true, false);
     const position = mesh.geometry.getAttribute("position");
     const index = mesh.geometry.index;
@@ -524,14 +667,16 @@ function selectFloor(n) {
 
   if (selected !== null) {
     controls.autoRotate = false; 
-    const floorY = 1.5 + (selected - 1) * 3 + 1.5; 
+    const originalFloorY = 1.5 + (selected - 1) * 3 + 1.5;
+    const explosionOffset = isExploded ? (selected - 1) * 8 : 0;
+    const floorY = originalFloorY + explosionOffset;
     targetLookAt.set(0, floorY, 0); 
     targetCamPos.set(45, floorY + 10, 65); 
     isAnimating = true;
   } else {
     controls.autoRotate = false; 
-    targetLookAt.set(0, 15, 0);
-    targetCamPos.set(43, 22, 76);
+    targetLookAt.set(0, isExploded ? 50 : 15, 0);
+    targetCamPos.set(isExploded ? 110 : 43, isExploded ? 80 : 22, isExploded ? 130 : 76);
     isAnimating = true;
   }
   refreshSelection();
@@ -615,6 +760,102 @@ function renderPanel() {
   for (const u of units) unitsBox.appendChild(unitCard(u));
 }
 
+function createFloorStairs(floorNum) {
+  const stairsGroup = new THREE.Group();
+  const steps = 10;
+  const rise = 3.0 / steps;
+  const run = 3.0 / steps;  
+  const width = 2.0;
+  const startZ = -0.8;
+
+  for (let i = 0; i < steps; i++) {
+    const stepGeo = new THREE.BoxGeometry(width, rise, run);
+    const stepMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.8 });
+    const step = new THREE.Mesh(stepGeo, stepMat);
+    
+    step.position.set(0, (i + 0.5) * rise, startZ + (i + 0.5) * run);
+    
+    step.castShadow = true;
+    step.receiveShadow = true;
+    stairsGroup.add(step);
+  }
+  
+  stairsGroup.position.y = 1.5 + (floorNum - 1) * 3;
+
+  if (!floorStairGroups.has(floorNum)) floorStairGroups.set(floorNum, []);
+  floorStairGroups.get(floorNum).push(stairsGroup);
+  scene.add(stairsGroup);
+}
+
+function createShafts() {
+  const shaftGroup = new THREE.Group();
+  scalableShaftGroup = new THREE.Group();
+  
+  const centerX = 0; 
+  const centerZ = -0.5; 
+  const totalHeight = 40.5;
+
+  const stairsGeo = new THREE.BoxGeometry(6.36, totalHeight, 2.31);
+  const stairsMat = new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, opacity: 0.15, depthWrite: false });
+  const stairsBox = new THREE.Mesh(stairsGeo, stairsMat);
+  stairsBox.position.set(centerX, totalHeight / 2, centerZ + 1.15); 
+  scalableShaftGroup.add(stairsBox);
+
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0xff5555 });
+  const edges = new THREE.EdgesGeometry(stairsGeo);
+  const line = new THREE.LineSegments(edges, edgeMat);
+  line.position.copy(stairsBox.position);
+  scalableShaftGroup.add(line);
+
+  const lobbyGeo = new THREE.BoxGeometry(6.36, totalHeight, 2.31);
+  const lobbyMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.1, depthWrite: false });
+  const lobby = new THREE.Mesh(lobbyGeo, lobbyMat);
+  lobby.position.set(centerX, totalHeight / 2, centerZ - 1.15); 
+  scalableShaftGroup.add(lobby);
+
+  const lobbyEdges = new THREE.EdgesGeometry(lobbyGeo);
+  const lobbyLine = new THREE.LineSegments(lobbyEdges, new THREE.LineBasicMaterial({ color: 0x55ffff }));
+  lobbyLine.position.copy(lobby.position);
+  scalableShaftGroup.add(lobbyLine);
+
+  const shaftGeo = new THREE.BoxGeometry(5.30, totalHeight, 1.54);
+  const shaftMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.2, depthWrite: false });
+  const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+  shaft.position.set(centerX - 0.3, totalHeight / 2, centerZ - 1.5); 
+  scalableShaftGroup.add(shaft);
+
+  const shaftEdges = new THREE.EdgesGeometry(shaftGeo);
+  const shaftLine = new THREE.LineSegments(shaftEdges, new THREE.LineBasicMaterial({ color: 0x55ff55 }));
+  shaftLine.position.copy(shaft.position);
+  scalableShaftGroup.add(shaftLine);
+
+  shaftGroup.add(scalableShaftGroup);
+
+  const carGeo = new THREE.CylinderGeometry(0.6, 0.6, 2.5, 16);
+  const carMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+  
+  const car1 = new THREE.Mesh(carGeo, carMat); 
+  const car2 = new THREE.Mesh(carGeo, carMat); 
+  
+  scene.add(car1);
+  scene.add(car2);
+  elevatorCars = [car1, car2];
+
+  const bridgeLeftGeo = new THREE.BoxGeometry(2, 0.2, 1.5); 
+  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
+  
+  const bridgeLeft = new THREE.Mesh(bridgeLeftGeo, bridgeMat);
+  bridgeLeft.position.set(centerX - 2.8, 10, centerZ - 1.5); 
+  scalableShaftGroup.add(bridgeLeft);
+
+  const bridgeTopGeo = new THREE.BoxGeometry(1.5, 0.2, 1.5); 
+  const bridgeTop = new THREE.Mesh(bridgeTopGeo, bridgeMat);
+  bridgeTop.position.set(centerX - 0.3, 10, centerZ - 2.5); 
+  scalableShaftGroup.add(bridgeTop);
+
+  scene.add(shaftGroup);
+}
+
 const loader = new GLTFLoader();
 loader.load(
   "../output/building.glb",
@@ -660,21 +901,52 @@ loader.load(
         o.material.color.set(0x6d7958);
         o.material.roughness = 1;
       }
+      
       const m = /^Floor_(\d{2})/.exec(o.name);
       if (m) {
         const n = Number(m[1]);
         o.userData.floor = n;
         if (!floorMeshes.has(n)) floorMeshes.set(n, []);
         floorMeshes.get(n).push(o);
+      } else {
+        const nameLower = o.name.toLowerCase();
+        if (nameLower.includes("stair") || nameLower.includes("entrance")) {
+          o.material = o.material.clone();
+          entranceMeshes.push(o);
+        } else if (nameLower.includes("roof") || nameLower.includes("membrane") || nameLower.includes("parapet") || nameLower.includes("wall") || nameLower.includes("concrete")) {
+          o.material = o.material.clone(); 
+          roofMeshes.push(o);
+        }
       }
     });
     scene.add(root);
 
-    // ==========================================
-    // 🏙️ გარემოს განლაგება (ჩრდილოეთი = +Z, სამხრეთი = -Z)
-    // ==========================================
-    
-    // მიწა (ბალახი) - გაზრდილი 5000x5000
+    for (let i = 0; i < 13; i++) {
+      const aptA = create2RoomApartment();
+      aptA.position.set(APT_POSITION_A[0], 1.5 + i * 3.0, APT_POSITION_A[2]);
+      aptA.scale.set(...APT_SCALE);
+      aptA.rotation.y = 0;
+      aptA.visible = false;
+      scene.add(aptA);
+      apartmentsSideA.push(aptA);
+    }
+
+    for (let i = 0; i < 13; i++) {
+      const aptB = create2RoomApartment();
+      aptB.position.set(APT_POSITION_B[0], 1.5 + i * 3.0, APT_POSITION_B[2]);
+      aptB.scale.set(...APT_SCALE);
+      aptB.rotation.y = Math.PI;
+      aptB.visible = false;
+      scene.add(aptB);
+      apartmentsSideB.push(aptB);
+    }
+
+    for (let i = 1; i <= 12; i++) {
+        createFloorStairs(i);
+    }
+
+    createShafts();
+
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(5000, 5000),
       new THREE.MeshStandardMaterial({ color: 0x5a6e4b, roughness: 0.9 })
@@ -691,7 +963,6 @@ loader.load(
     buildingApron.receiveShadow = true;
     scene.add(buildingApron);
 
-    // პარკინგი ჩრდილოეთით (Z = 30)
     const parkingLot = new THREE.Mesh(new THREE.PlaneGeometry(60, 25), asphaltMat);
     parkingLot.rotation.x = -Math.PI / 2;
     parkingLot.position.set(0, 0.02, 30); 
@@ -736,16 +1007,13 @@ loader.load(
       scene.add(tree);
     }
 
-    // ხეები სამხრეთით (Z < -15)
     for (let x = -30; x <= 30; x += 5) {
       createTree(x + Math.random()*2, -22 - Math.random()*5, 'deciduous');
       if (x % 10 === 0) createTree(x, -28, 'pine');
     }
-    // ხეები აღმოსავლეთით (X > 20)
     for (let z = -15; z <= 15; z += 4) {
       createTree(24 + Math.random()*3, z, 'deciduous');
     }
-    // ხეები დასავლეთით (X < -20)
     for (let z = -15; z <= 15; z += 5) {
       createTree(-24 - Math.random()*3, z, Math.random() > 0.5 ? 'deciduous' : 'pine');
     }
@@ -779,8 +1047,6 @@ loader.load(
       if (Math.random() > 0.5) createCar(x, 32.5, 0); 
     }
 
-    // ==========================================
-
     const box = new THREE.Box3().setFromObject(root);
     const c = box.getCenter(new THREE.Vector3());
     controls.target.copy(c);
@@ -803,7 +1069,10 @@ loader.load(
       floorBar.appendChild(b);
     }
     refreshSelection();
-    resize();
+    
+    setTimeout(resize, 50);
+    setTimeout(resize, 250);
+    
     loadingOverlay.classList.add("hidden");
   },
   undefined,
@@ -822,10 +1091,14 @@ renderer.domElement.addEventListener("pointerdown", (e) => { down = { x: e.clien
 renderer.domElement.addEventListener("pointerup", (e) => {
   if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
   down = null;
+
   const r = renderer.domElement.getBoundingClientRect();
   ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
   ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   ray.setFromCamera(ptr, camera);
+
+  if (isAptViewActive) return;
+
   const all = [];
   for (const meshes of floorMeshes.values()) all.push(...meshes);
   const hits = ray.intersectObjects(all, false);
@@ -843,34 +1116,166 @@ roomFilters.addEventListener("click", (event) => {
   if (button) selectRoomCount(Number(button.dataset.rooms));
 });
 
+viewAptBtn.addEventListener("click", () => {
+  // თუ კორპუსი გაშლილია, ჯერ ავაწყოთ
+  if (!isAptViewActive && isExploded) {
+    explodeBtn.click();
+  }
+
+  isAptViewActive = !isAptViewActive;
+  viewAptBtn.classList.toggle("on", isAptViewActive);
+
+  if (isAptViewActive) {
+    targetLookAt.set(0.76, 39.0, 0); 
+    targetCamPos.set(0.76, 45, 30);
+    
+    for (const mesh of roofMeshes) mesh.visible = false;
+    for (const [n, groups] of floorStairGroups) {
+      for (const group of groups) group.visible = true;
+    }
+    if (scalableShaftGroup) scalableShaftGroup.visible = true;
+    if (elevatorCars) elevatorCars.forEach(c => c.visible = true);
+
+    for (const [n, meshes] of floorMeshes) {
+      for (const mesh of meshes) {
+        mesh.visible = true;
+        if (mesh.isMesh && mesh.material) {
+          if (n === 13) {
+            mesh.material.transparent = true;
+            mesh.material.opacity = 0.3;
+          } else {
+            mesh.material.transparent = false;
+            mesh.material.opacity = 1.0;
+          }
+          mesh.material.needsUpdate = true;
+        }
+      }
+    }
+
+    apartmentsSideA.forEach((apt, i) => apt.visible = (i === 12));
+    apartmentsSideB.forEach((apt, i) => apt.visible = (i === 12));
+
+    controls.autoRotate = false; 
+  } else {
+    targetLookAt.set(0, isExploded ? 50 : 15, 0);
+    targetCamPos.set(isExploded ? 110 : 43, isExploded ? 80 : 22, isExploded ? 130 : 76);
+
+    for (const [n, meshes] of floorMeshes) {
+      for (const mesh of meshes) {
+        mesh.visible = true;
+        if (mesh.isMesh && mesh.material) {
+          mesh.material.transparent = isExploded;
+          mesh.material.opacity = isExploded ? 0.3 : 1.0;
+          mesh.material.needsUpdate = true;
+        }
+      }
+    }
+
+    for (const mesh of roofMeshes) mesh.visible = true;
+    for (const [n, groups] of floorStairGroups) {
+      for (const group of groups) group.visible = true;
+    }
+    if (scalableShaftGroup) scalableShaftGroup.visible = true;
+    if (elevatorCars) elevatorCars.forEach(c => c.visible = true);
+
+    apartmentsSideA.forEach(apt => apt.visible = isExploded);
+    apartmentsSideB.forEach(apt => apt.visible = isExploded);
+
+    controls.autoRotate = true;
+  }
+  isAnimating = true;
+});
+
 function resize() {
   const w = wrap.clientWidth;
   const h = wrap.clientHeight;
+  if (w === 0 || h === 0) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
 addEventListener("resize", resize);
 
+const resizeObserver = new ResizeObserver(() => {
+  resize();
+});
+resizeObserver.observe(wrap);
+
 let isAnimating = false;
 const targetCamPos = new THREE.Vector3();
 const targetLookAt = new THREE.Vector3();
 controls.addEventListener('start', () => { isAnimating = false; });
 
+let prevT = performance.now() / 1000;
+
 renderer.setAnimationLoop(() => {
+  const now = performance.now() / 1000;
+  const dt = Math.min(now - prevT, 0.1); 
+  prevT = now;
+  const k = 1 - Math.exp(-dt * 8); // კადრების სიხშირისგან დამოუკიდებელი ანიმაცია
+
   if (isAnimating) {
-    camera.position.lerp(targetCamPos, 0.05);
-    controls.target.lerp(targetLookAt, 0.05);
+    camera.position.lerp(targetCamPos, k);
+    controls.target.lerp(targetLookAt, k);
     if (camera.position.distanceTo(targetCamPos) < 0.1) {
       isAnimating = false;
-      if (selected === null) controls.autoRotate = true;
+      if (selected === null && !isAptViewActive) controls.autoRotate = true;
     }
   } else {
     controls.update();
   }
 
+  for (const [n, meshes] of floorMeshes) {
+    const targetY = isExploded ? (n - 1) * 8 : 0; 
+    for (const mesh of meshes) {
+      mesh.position.y += (targetY - mesh.position.y) * k;
+    }
+  }
+
+  for (let i = 0; i < apartmentsSideA.length; i++) {
+    const baseY = 1.5 + i * 3.0;
+    const targetY = isExploded ? baseY + i * 8.0 : baseY;
+    
+    apartmentsSideA[i].position.y += (targetY - apartmentsSideA[i].position.y) * k;
+    if (apartmentsSideB[i]) {
+      apartmentsSideB[i].position.y += (targetY - apartmentsSideB[i].position.y) * k;
+    }
+  }
+
+  for (const [n, groups] of floorStairGroups) {
+    const baseY = 1.5 + (n - 1) * 3;
+    const targetY = isExploded ? baseY + (n - 1) * 8 : baseY; 
+    for (const group of groups) {
+      group.position.y += (targetY - group.position.y) * k;
+    }
+  }
+
+  const roofTargetY = isExploded ? 13 * 8 : 0;
+  for (const mesh of roofMeshes) {
+    mesh.position.y += (roofTargetY - mesh.position.y) * k;
+  }
+
+  shaftScale += (targetShaftScale - shaftScale) * k;
+  if (scalableShaftGroup) {
+    scalableShaftGroup.scale.y = shaftScale;
+  }
+
+  if (elevatorCars.length > 0) {
+    const time = Date.now() * 0.001;
+    const cycle = Math.sin(time * 0.8); 
+    const t = (cycle + 1) / 2; 
+
+    const yBase = 1.5; 
+    const yTop = isExploded ? (11 * 8) + 1.5 : 34.5; 
+
+    const carY = yBase + t * (yTop - yBase);
+    
+    elevatorCars[0].position.set(-1.0, carY, -2.3);
+    elevatorCars[1].position.set(0.5, carY + 4, -2.3);
+  }
+
   if (sideHighlight) {
-    const time = Date.now() * 0.0015; //
+    const time = Date.now() * 0.0015; 
     sideHighlightMaterial.opacity = 0.5 + (Math.sin(time) * 0.3); 
   }
 
