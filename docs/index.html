@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="data:,">
-<title>კორპუსი - რეალური დროის სიმულატორი</title>
+<title>კორპუსი </title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -152,7 +152,7 @@
   </div>
   <aside id="panel">
     <h1>კორპუსი</h1>
-    <p class="sub">ვარკეთილი-3 IV მიკრო რაიონი · 13 სართული · 4 ბინა/სართული</p>
+    <p class="sub">ვარკეთილი-3  · 13 სართული · 4 ბინა/სართული</p>
     <div id="data-error" role="alert" aria-live="assertive"></div>
     <h2 id="panel-title">აირჩიე სართული</h2>
     <div id="room-filters" aria-label="ბინის ოთახების რაოდენობა">
@@ -195,10 +195,12 @@ const explodeBtn = document.getElementById("explode-btn");
 const viewAptBtn = document.getElementById("view-apt-btn");
 
 let isAptViewActive = false;
+let currentWeatherCode = 0;
 const apartmentsSideA = []; 
 const apartmentsSideB = [];
 let scalableShaftGroup = null;  
 let elevatorCars = [];          
+const streetLamps = []; 
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -211,13 +213,14 @@ renderer.localClippingEnabled = true;
 wrap.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x9fc4e5, 500, 4000); //  
-
+scene.fog = null;
 const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 10000);
+camera.layers.enable(1); 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.maxPolarAngle = Math.PI * 0.495;
+
+controls.maxPolarAngle = Math.PI * 0.495; 
 controls.minDistance = 12;
 controls.maxDistance = 400;
 controls.autoRotate = true;
@@ -235,6 +238,112 @@ skyUniforms['turbidity'].value = 10;
 skyUniforms['rayleigh'].value = 2;
 skyUniforms['mieCoefficient'].value = 0.005;
 skyUniforms['mieDirectionalG'].value = 0.8;
+
+// ─── 1. მთვარის Canvas-ით დახატვა (ფაზებით) ───
+const moonCanvas = document.createElement('canvas');
+moonCanvas.width = 256; moonCanvas.height = 256;
+const moonCtx = moonCanvas.getContext('2d');
+const moonTexture = new THREE.CanvasTexture(moonCanvas);
+
+const moonMat = new THREE.SpriteMaterial({ map: moonTexture, transparent: true });
+const moon = new THREE.Sprite(moonMat);
+
+moon.scale.set(80, 80, 1); 
+moon.layers.set(1); 
+scene.add(moon);
+
+function drawMoonPhase(phase) {
+  moonCtx.clearRect(0, 0, 256, 256);
+  
+  const cx = 128, cy = 128, r = 120;
+
+  // 1. მუქი მხარე (მთლიანი წრე)
+  moonCtx.fillStyle = '#1a1a1a'; 
+  moonCtx.beginPath();
+  moonCtx.arc(cx, cy, r, 0, Math.PI * 2);
+  moonCtx.fill();
+
+
+  if (phase === 0 || phase === 1) return; 
+
+  // 2. ნათელი მხარე
+  moonCtx.fillStyle = '#e6e6e6';
+  moonCtx.beginPath();
+  
+  // cos განსაზღვრავს ჩრდილის სიგანეს (ტერმინატორს)
+  const cos = Math.cos(phase * Math.PI * 2);
+  const rx = Math.abs(r * cos); // ელიფსის სიგანე
+  
+  if (phase < 0.5) {
+    // იზრდება (მარჯვენა მხარე ნათდება)
+    // ვხატავთ მარჯვენა ნახევარწრეს (ზემოდან ქვემოთ)
+    moonCtx.arc(cx, cy, r, -Math.PI/2, Math.PI/2, false);
+    // ვხატავთ ჩრდილის რკალს (ქვემოდან ზემოთ)
+    moonCtx.ellipse(cx, cy, rx, r, 0, Math.PI/2, -Math.PI/2, cos < 0);
+  } else {
+    // მცირდება (მარცხენა მხარე ნათდება)
+    // ვხატავთ მარცხენა ნახევარწრეს (ქვემოდან ზემოთ)
+    moonCtx.arc(cx, cy, r, Math.PI/2, -Math.PI/2, false);
+    // ვხატავთ ჩრდილის რკალს (ზემოდან ქვემოთ)
+    moonCtx.ellipse(cx, cy, rx, r, 0, -Math.PI/2, Math.PI/2, cos < 0);
+  }
+  
+  moonCtx.fill();
+  moonTexture.needsUpdate = true;
+}
+// ─── 2. ლამპიონები კორპუსის გარშემო ───
+function createStreetLamps() {
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.8 });
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffeedd }); 
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6 });
+
+  const positions = [
+    [-20, 20], [20, 20], [-20, -20], [20, -20],
+    [-15, 35], [15, 35]
+  ];
+
+  positions.forEach(([x, z]) => {
+    const group = new THREE.Group();
+    
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 8), poleMat);
+    pole.position.y = 4;
+    pole.castShadow = true;
+    group.add(pole);
+
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2), poleMat);
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(1, 7.8, 0);
+    group.add(arm);
+
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), bulbMat);
+    bulb.position.set(2, 7.8, 0);
+    group.add(bulb);
+
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 8), capMat);
+    cap.position.set(2, 8.1, 0);
+    group.add(cap);
+
+    const light = new THREE.PointLight(0xffddaa, 0, 100); 
+    light.position.set(2, 7.8, 0);
+    group.add(light);
+
+    group.position.set(x, 0, z);
+    group.rotation.y = Math.atan2(-z, -x) - Math.PI / 2;
+    scene.add(group);
+    streetLamps.push(light);
+  });
+}
+
+// ─── 3. მთვარის შუქი შენობისთვის ───
+const moonBuildingLight = new THREE.DirectionalLight(0x99bbff, 0);
+moonBuildingLight.castShadow = true;
+moonBuildingLight.shadow.mapSize.set(1024, 1024);
+moonBuildingLight.shadow.camera.left = -60;
+moonBuildingLight.shadow.camera.right = 60;
+moonBuildingLight.shadow.camera.top = 60;
+moonBuildingLight.shadow.camera.bottom = -60;
+moonBuildingLight.shadow.camera.far = 300;
+scene.add(moonBuildingLight);
 
 const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
 sunLight.castShadow = true;
@@ -264,31 +373,61 @@ function updateSunAndSky(date) {
   sunLight.position.copy(sunPosition).multiplyScalar(100);
 
   const altitude = sunPos.altitude;
-  
-  if (altitude > 0) {
+  const isNight = (altitude < 0);
+
+  const dayFactor = Math.max(0, Math.min(1, altitude * 5)); 
+
+  if (!isNight) {
     sunLight.color.setHex(0xffffff);
-    sunLight.intensity = 2.5;
-    ambientLight.intensity = 1.2;
+    if (currentWeatherCode >= 1 && currentWeatherCode <= 3) {
+      sunLight.intensity = 0.5 * dayFactor;
+      ambientLight.intensity = 0.8 * dayFactor + 0.1;
+    } else if (currentWeatherCode >= 51) {
+      sunLight.intensity = 0.3 * dayFactor;
+      ambientLight.intensity = 0.6 * dayFactor + 0.1;
+    } else {
+      sunLight.intensity = 2.5 * dayFactor;
+      ambientLight.intensity = 1.2 * dayFactor + 0.1;
+    }
   } else {
-    sunLight.color.setHex(0x4477aa); 
-    sunLight.intensity = 0.2;
+    sunLight.intensity = 0;
     ambientLight.intensity = 0.4;
   }
 
   const hours = date.getHours() + date.getMinutes() / 60;
   if (hours < 6 || hours > 20) {
-    skyUniforms['turbidity'].value = 20; 
-    skyUniforms['rayleigh'].value = 4;
-    skyUniforms['mieCoefficient'].value = 0.01;
-    scene.fog.color.setHex(0x050a14); // ოპტიმიზაცია
+    skyUniforms['turbidity'].value = 5; 
+    skyUniforms['rayleigh'].value = 0.5;
+    skyUniforms['mieCoefficient'].value = 0.003;
   } else if (hours < 8 || hours > 18) {
-    skyUniforms['turbidity'].value = 15;
-    skyUniforms['rayleigh'].value = 3;
-    scene.fog.color.setHex(0x7b9bbd); // ოპტიმიზაცია
+    skyUniforms['turbidity'].value = 10;
+    skyUniforms['rayleigh'].value = 2;
   } else {
     skyUniforms['turbidity'].value = 10; 
     skyUniforms['rayleigh'].value = 2;  
-    scene.fog.color.setHex(0x9fc4e5); // ოპტიმიზაცია
+  }
+
+  // მთვარის ლოგიკა
+  const moonPos = SunCalc.getMoonPosition(date, lat, lon);
+  const mPhi = Math.PI / 2 - moonPos.altitude;
+  const mTheta = Math.PI - moonPos.azimuth;
+  
+
+  const clampedPhi = Math.max(1.35, Math.min(1.5, mPhi));
+  moon.position.setFromSphericalCoords(2000, clampedPhi, mTheta);
+
+  const moonIllum = SunCalc.getMoonIllumination(date);
+  drawMoonPhase(moonIllum.phase);
+
+  if (isNight) {
+    moon.visible = true;
+    moonBuildingLight.position.copy(moon.position);
+    moonBuildingLight.intensity = 0.4 + (moonIllum.fraction * 0.6); 
+    streetLamps.forEach(light => light.intensity = 6);
+  } else {
+    moon.visible = false;
+    moonBuildingLight.intensity = 0;
+    streetLamps.forEach(light => light.intensity = 0);
   }
 }
 
@@ -331,9 +470,17 @@ async function fetchWeather() {
     const data = await res.json();
     const weather = data.current_weather;
     const code = weather.weathercode;
+    currentWeatherCode = code;
     
     let statusText = "მოწმენდილი";
     let effect = null;
+
+    if (code === 45 || code === 48) {
+      statusText = "ნისლი";
+      scene.fog = new THREE.Fog(0x9fc4e5, 10, 150);
+    } else {
+      scene.fog = null;
+    }
 
     if (code >= 51 && code <= 67) { statusText = "წვიმა"; effect = 'rain'; }
     else if (code >= 71 && code <= 77) { statusText = "თოვლი"; effect = 'snow'; }
@@ -343,7 +490,13 @@ async function fetchWeather() {
     else if (code >= 1 && code <= 3) { statusText = "ღრუბლიანი"; }
 
     weatherStatus.textContent = `🌡️ ${weather.temperature}°C · ${statusText}`;
-    if (effect) createPrecipitation(effect);
+    
+    if (effect) {
+      createPrecipitation(effect);
+    } else {
+      if (rainParticles) { scene.remove(rainParticles); rainParticles = null; }
+      if (snowParticles) { scene.remove(snowParticles); snowParticles = null; }
+    }
   } catch (e) {
     weatherStatus.textContent = "ამინდი მიუწვდომელია";
   }
@@ -379,7 +532,6 @@ timeSlider.addEventListener('input', (e) => {
   updateTimeDisplay();
   updateSunAndSky(currentDate);
 
-  // 10 წამის შემდეგ ისევ რეალურ დროზე გადადის
   syncResumeTimer = setTimeout(() => {
     isTimeSync = true;
     currentDate = new Date();
@@ -946,6 +1098,7 @@ loader.load(
     }
 
     createShafts();
+    createStreetLamps();
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(5000, 5000),
@@ -1117,7 +1270,6 @@ roomFilters.addEventListener("click", (event) => {
 });
 
 viewAptBtn.addEventListener("click", () => {
-  // თუ კორპუსი გაშლილია, ჯერ ავაწყოთ
   if (!isAptViewActive && isExploded) {
     explodeBtn.click();
   }
@@ -1212,7 +1364,7 @@ renderer.setAnimationLoop(() => {
   const now = performance.now() / 1000;
   const dt = Math.min(now - prevT, 0.1); 
   prevT = now;
-  const k = 1 - Math.exp(-dt * 8); // კადრების სიხშირისგან დამოუკიდებელი ანიმაცია
+  const k = 1 - Math.exp(-dt * 8); 
 
   if (isAnimating) {
     camera.position.lerp(targetCamPos, k);
